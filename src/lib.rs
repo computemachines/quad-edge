@@ -1,66 +1,86 @@
-use std::cell::{Cell, Ref, RefCell};
-use std::rc::{Rc, Weak};
+// ids only for now.
+// all operations will have to be conjugate to mesh memory arena.
 
-type Mesh = Vec<QEdge>;
-struct QEdge {
-    dedges: [DEdge; 4],
-}
+// memory arena
+type Mesh = Vec<DEdge>;
+type DEdgeID = usize;
 
-type Ptr<A> = Option<Rc<RefCell<A>>>;
-type WeakPtr<A> = Option<Weak<RefCell<A>>>;
-
-#[derive(Debug)]
+// A view into a Quad Edge.
+#[derive(PartialEq, Debug, Clone)]
 struct DEdge {
-    origin: Rc<Node>,
-    onext: WeakPtr<DEdge>,
-    rot: WeakPtr<DEdge>,
-    flip: WeakPtr<DEdge>,
+    // orientation: Orientation,
+    origin: Node,
+    onext: DEdgeID,
+    rot: DEdgeID,
 }
+
 impl DEdge {
-    fn new(origin: Rc<Node>) -> DEdge {
-        DEdge {
-            origin: origin,
-            onext: None,
-            rot: None,
-            flip: None,
-        }
+    fn org(&self) -> &Node {
+        &self.origin
     }
-    fn onext(&self) -> &Ptr<DEdge> {
-        &self.onext.and_then(|o| o.upgrade())
+    fn onext(&self, mesh: &Mesh) -> DEdge {
+        mesh[self.onext].clone()
     }
-    fn flip(&self) -> &Ptr<DEdge> {
-        &self.flip.and_then(|f| f.upgrade())
+    fn rot(&self, mesh: &Mesh) -> DEdge {
+        mesh[self.rot].clone()
     }
-}
-impl PartialEq for DEdge {
-    fn eq(&self, other: &DEdge) -> bool {
-        *self.origin == *other.origin
+    fn sym(&self, mesh: &Mesh) -> DEdge {
+        self.rot(mesh).rot(mesh)
+    }
+
+    fn splice(&mut self, mesh: &Mesh, that: &mut DEdge) {
+        let mut alpha = self.onext(mesh).rot(mesh);
+        let mut beta = that.onext(mesh).rot(mesh);
+
+        let temp = self.onext;
+        self.onext = that.onext;
+        that.onext = temp;
+        
+        let temp = alpha.onext;
+        alpha.onext = beta.onext;
+        beta.onext = temp;
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+enum Orientation {
+    CW,
+    CCW,
+}
+
+fn makeEdge(mesh: &mut Mesh, a: &Node, b: &Node) -> DEdge {
+    let a = a.clone();
+    let b = b.clone();
+    let base_id = mesh.len();
+    let r0 = mesh.push(DEdge {
+        origin: a,
+        onext: base_id,
+        rot: base_id+1,
+    });
+    let r1 = mesh.push(DEdge {
+        origin: Node::Infinite,
+        onext: base_id+1,
+        rot: base_id+2,
+    });
+    let r2 = mesh.push(DEdge {
+        origin: b,
+        onext: base_id+2,
+        rot: base_id+3,
+    });
+    let r3 = mesh.push(DEdge {
+        origin: Node::Infinite,
+        onext: base_id+3,
+        rot: base_id,
+    });
+    return mesh[base_id].clone()
+}
+
+
+#[derive(PartialEq, Debug, Clone)]
 enum Node {
-    Data { label: String },
-    Inf,
+    Finite(String),
+    Infinite,
 }
 
-impl Node {
-    fn from(label: &str) -> Node {
-        Node::Data { label: String::from(label) }
-    }
-}
-
-impl QEdge {
-    fn new(from: Rc<Node>, to: Rc<Node>) -> QEdge {
-        let dedges = [
-            DEdge::new(from),
-            DEdge::new(Rc::new(Node::Inf)),
-            DEdge::new(to),
-            DEdge::new(Rc::new(Node::Inf)),
-        ];
-        QEdge { dedges: dedges }
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -68,12 +88,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn basic_qedge() {
-        let A = Rc::new(Node::from("A"));
-        let B = Rc::new(Node::from("B"));
-        let q = QEdge::new(A, B);
-        let d = &q.dedges[0];
-        assert_eq!(*d, *d);
+    fn test_make_edge_topological_operator() {
+        let mut mesh = vec![];
+        let e = makeEdge(&mut mesh, &Node::Finite("A".to_string()), &Node::Finite("B".to_string()));
+        assert_ne!(e.org(), e.sym(&mut mesh).org());
+        assert_eq!(e, e.onext(&mut mesh));
+    }
+
+    #[test]
+    fn splice_doesnt_crash() {
+        let mut mesh = vec![];
+        let mut f = makeEdge(&mut mesh, &Node::Finite("A".to_string()), &Node::Finite("B".to_string()));
+        let mut g = makeEdge(&mut mesh, &Node::Finite("C".to_string()), &Node::Finite("D".to_string()));
+        f.splice(&mut mesh, &mut g);
     }
 
     // #[test]
