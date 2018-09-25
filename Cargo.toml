@@ -5,3 +5,6 @@ authors = ["Tyler Parker <tparker@computemachines.com>"]
 
 [dependencies]
 
+[lib]
+name = "mesh"
+crate-type = ["dylib"]
