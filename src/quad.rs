@@ -1,5 +1,8 @@
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub struct UnspecifiedDEdgeEntity(pub usize);
+
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
 pub struct PrimalDEdgeEntity(pub usize);
 
 impl PrimalDEdgeEntity {
@@ -11,6 +14,18 @@ impl PrimalDEdgeEntity {
     }
     pub fn sym(self) -> PrimalDEdgeEntity {
         PrimalDEdgeEntity(self.0 ^ 1)
+    }
+}
+
+impl From<UnspecifiedDEdgeEntity> for PrimalDEdgeEntity {
+    fn from(e: UnspecifiedDEdgeEntity) -> Self {
+        PrimalDEdgeEntity(e.0)
+    }
+}
+
+impl Into<UnspecifiedDEdgeEntity> for PrimalDEdgeEntity {
+    fn into(self) -> UnspecifiedDEdgeEntity {
+        UnspecifiedDEdgeEntity(self.0)
     }
 }
 
@@ -26,6 +41,18 @@ impl DualDEdgeEntity {
     }
     pub fn sym(self) -> DualDEdgeEntity {
         DualDEdgeEntity(self.0 ^ 1)
+    }
+}
+
+impl From<UnspecifiedDEdgeEntity> for DualDEdgeEntity {
+    fn from(e: UnspecifiedDEdgeEntity) -> Self {
+        DualDEdgeEntity(e.0)
+    }
+}
+
+impl Into<UnspecifiedDEdgeEntity> for DualDEdgeEntity {
+    fn into(self) -> UnspecifiedDEdgeEntity {
+        UnspecifiedDEdgeEntity(self.0)
     }
 }
 
