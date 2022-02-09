@@ -30,7 +30,7 @@ impl Default for VoronoiVertex {
 }
 
 #[derive(Default, Debug)]
-pub struct VoronoiDEdge {
+pub struct VoronoiDEdge { 
     vertex: VoronoiVertex,
     onext: DualDEdgeEntity,
 }

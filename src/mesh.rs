@@ -27,8 +27,8 @@ where
     pub fn get_primal(&self, entity: PrimalDEdgeEntity) -> &RefCell<T> {
         self.primal_dedges.get(entity.0).unwrap().as_ref().unwrap()
     }
-    fn get_dual(&self, entity: DualDEdgeEntity) -> &RefCell<T> {
-        self.primal_dedges.get(entity.0).unwrap().as_ref().unwrap()
+    pub fn get_dual(&self, entity: DualDEdgeEntity) -> &RefCell<U> {
+        self.dual_dedges.get(entity.0).unwrap().as_ref().unwrap()
     }
 
     pub fn get_primal_onext_ring(&'a self, entity: PrimalDEdgeEntity) -> PrimalOnextRing<'a, T, U> {
@@ -61,7 +61,7 @@ where
         entity
     }
 
-    fn splice_primal(&self, a: PrimalDEdgeEntity, b: PrimalDEdgeEntity) {
+    pub fn splice_primal(&self, a: PrimalDEdgeEntity, b: PrimalDEdgeEntity) {
         let alpha = self.get_primal(a).borrow().onext().rot();
         let beta = self.get_primal(b).borrow().onext().rot();
 
