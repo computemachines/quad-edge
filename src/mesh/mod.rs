@@ -145,6 +145,24 @@ impl<'a, V, F> Mesh<V, F> {
         self.dual_dedges.get_mut(e.rot().0).unwrap().take();
         self.dual_dedges.get_mut(e.rot_inv().0).unwrap().take();
     }
+
+    pub fn swap(&self, e: PrimalDEdgeEntity) {
+        let a = self.get_dual(e.rot()).borrow().onext.rot();
+        let b = self.get_dual(e.rot_inv()).borrow().onext.rot();
+        let a_lnext = self.get_dual(a.rot_inv()).borrow().onext.rot();
+        let b_lnext = self.get_dual(b.rot_inv()).borrow().onext.rot();
+
+        self.splice_primal(e, a);
+        self.splice_primal(e.sym(), b);
+        self.splice_primal(e, a_lnext);
+        self.splice_primal(e.sym(), b_lnext);
+
+        let org = self.get_primal(a.sym()).borrow().org;
+        let dest = self.get_primal(b.sym()).borrow().org;
+
+        self.get_primal(e).borrow_mut().org = org;
+        self.get_primal(e.sym()).borrow_mut().org = dest;
+    }
 }
 
 pub struct PrimalOnextRing<'a, V, F> {
