@@ -15,6 +15,9 @@ impl PrimalDEdgeEntity {
     pub fn sym(self) -> PrimalDEdgeEntity {
         PrimalDEdgeEntity(self.0 ^ 1)
     }
+    pub fn orientation(self) -> bool {
+        self.0.is_power_of_two()
+    }
 }
 
 impl From<UnspecifiedDEdgeEntity> for PrimalDEdgeEntity {
@@ -56,26 +59,20 @@ impl Into<UnspecifiedDEdgeEntity> for DualDEdgeEntity {
     }
 }
 
-pub trait PrimalDirectedEdge {
-    type Vertex;
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct VertexEntity(pub usize);
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct FaceEntity(pub usize);
 
-    /// Represents geometry of the mesh
-    fn get_org(&self) -> &Self::Vertex;
-    fn get_mut_org(&mut self) -> &mut Self::Vertex;
 
-    /// Represents the topology of the mesh
-    fn onext(&self) -> PrimalDEdgeEntity;
-    fn set_onext(&mut self, onext: PrimalDEdgeEntity);
+#[derive(Debug, Default)]
+pub struct PrimalDirectedEdge {
+    pub org: VertexEntity,
+    pub onext: PrimalDEdgeEntity,
 }
 
-pub trait DualDirectedEdge {
-    type Face;
-
-    /// Represents geometry of the dual mesh
-    fn get_org(&self) -> &Self::Face;
-    fn get_mut_org(&mut self) -> &mut Self::Face;
-
-    /// Represents the topology of the dual mesh
-    fn onext(&self) -> DualDEdgeEntity;
-    fn set_onext(&mut self, onext: DualDEdgeEntity);
+#[derive(Debug, Default)]
+pub struct DualDirectedEdge {
+    pub org: FaceEntity,
+    pub onext: DualDEdgeEntity,
 }
