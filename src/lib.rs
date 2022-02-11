@@ -2,7 +2,7 @@
 pub mod mesh;
 pub mod delaunay_voronoi;
 pub mod topological;
-
+pub mod geometry;
 
 #[cfg(test)]
 mod tests {

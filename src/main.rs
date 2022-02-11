@@ -12,7 +12,8 @@ fn main() {
   let e3 = mesh.make_edge(c, d, dummy, dummy);
 
   let e2 = mesh.connect_primal(e1, e3);
-  mesh.delete_primal(e2);
+  // mesh.delete_primal(e2);
+  mesh.swap(e2);
 
   for (i, e) in mesh.primal_dedges.iter().enumerate() {
     print!("PrimalDirectedEdge({}) := ", i);
