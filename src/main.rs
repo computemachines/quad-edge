@@ -1,28 +1,29 @@
-use quad_edge::topological::TopologicalMesh;
+use quad_edge::{
+  delaunay_voronoi::{DelaunayMesh, VoronoiVertex},
+  topological::TopologicalMesh,
+};
+#[cfg(feature = "gui")]
+mod gui;
 
 fn main() {
-  let mut mesh = TopologicalMesh::new();
-  let a = mesh.insert_vertex("A");
-  let b = mesh.insert_vertex("B");
-  let c = mesh.insert_vertex("C");
-  let d = mesh.insert_vertex("D");
-  let dummy = mesh.insert_face("(face)");
+    let x = 0.05;
 
-  let e1 = mesh.make_edge(a, b, dummy, dummy);
-  let e3 = mesh.make_edge(c, d, dummy, dummy);
+    let mut mesh = DelaunayMesh::new();
+    let a = mesh.insert_vertex((0.0, 1.0));
+    let b = mesh.insert_vertex((0.0, -1.0));
+    let c = mesh.insert_vertex((x, 0.0));
+    let d = mesh.insert_vertex((-x, 0.0));
+    let inf = mesh.insert_face(VoronoiVertex::Infinite);
 
-  let e2 = mesh.connect_primal(e1, e3);
-  // mesh.delete_primal(e2);
-  mesh.swap(e2);
+    let e1 = mesh.make_edge(d, a, inf, inf);
+    let e2 = mesh.make_edge(b, c, inf, inf);
+    let e3 = mesh.connect_primal(e2.sym(), e1);
+    let e4 = mesh.connect_primal(e2, e1.sym());
 
-  for (i, e) in mesh.primal_dedges.iter().enumerate() {
-    print!("PrimalDirectedEdge({}) := ", i);
-    if let Some(e) = e {
-      let e = e.borrow();
-      println!("({:?}, onext: {:?})", e.org, e.onext);
-    } else {
-      println!("None");
-    }
+    let e5 = mesh.connect_primal(e3.sym(), e1.sym());
+    // let e5 = mesh.connect_primal(e3, e4);
+    println!("isDelaunay: {}", mesh.is_delaunay(e5));
 
-  }
+    #[cfg(feature = "gui")]
+    gui::explore_mesh(mesh);
 }

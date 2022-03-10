@@ -2,7 +2,7 @@ use std::cell::RefCell;
 
 use self::quad::{
     DualDEdgeEntity, DualDirectedEdge, FaceEntity, PrimalDEdgeEntity, PrimalDirectedEdge,
-    VertexEntity,
+    VertexEntity, MeshCursor,
 };
 
 pub mod quad;
@@ -45,9 +45,9 @@ impl<'a, V, F> Mesh<V, F> {
         self.faces.get(entity.0).unwrap().as_ref().unwrap()
     }
 
-    pub fn insert_vertex(&mut self, v: V) -> VertexEntity {
+    pub fn insert_vertex<U: Into<V>>(&mut self, v: U) -> VertexEntity {
         let e = VertexEntity(self.vertices.len());
-        self.vertices.push(Some(RefCell::new(v)));
+        self.vertices.push(Some(RefCell::new(v.into())));
         e
     }
 
@@ -162,6 +162,10 @@ impl<'a, V, F> Mesh<V, F> {
 
         self.get_primal(e).borrow_mut().org = org;
         self.get_primal(e.sym()).borrow_mut().org = dest;
+    }
+
+    pub fn primal(&'a self, e: PrimalDEdgeEntity) -> MeshCursor<'a, V, F, PrimalDEdgeEntity> {
+        MeshCursor::new(self, e)
     }
 }
 
