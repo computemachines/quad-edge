@@ -11,3 +11,4 @@ gui = ["bevy"]
 [dependencies]
 cgmath = "0.18.0"
 bevy = { version = "0.6", optional = true }
+bevy_egui = "0.12"

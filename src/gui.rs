@@ -1,4 +1,6 @@
+use bevy::prelude::*;
 use bevy::{
+    diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
     ecs::system::lifetimeless::SRes,
     pbr::MaterialPipeline,
     prelude::*,
@@ -14,6 +16,7 @@ use bevy::{
         renderer::RenderDevice,
     },
 };
+use bevy_egui::{egui, EguiContext, EguiPlugin};
 use quad_edge::delaunay_voronoi::DelaunayMesh;
 
 #[derive(Component)]
@@ -23,18 +26,122 @@ pub fn explore_mesh(mesh: DelaunayMesh) {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(MaterialPlugin::<CustomMaterial>::default())
+        .add_plugin(FrameTimeDiagnosticsPlugin::default())
+        .add_plugin(EguiPlugin)
+        // Systems that create Egui widgets should be run during the `CoreStage::Update` stage,
+        // or after the `EguiSystem::BeginFrame` system (which belongs to the `CoreStage::PreUpdate` stage).
+        .add_system(ui_example)
         // .insert_resource(Msaa { samples: 1 })
         .add_startup_system(setup_system)
         .add_system(animate_light)
+        .add_system(text_update_system)
+        .add_system(text_color_system)
         .run();
 }
+
+fn ui_example(mut egui_context: ResMut<EguiContext>) {
+    egui::Window::new("Hello").show(egui_context.ctx_mut(), |ui| {
+        ui.label("world");
+    });
+}
+
+fn text_color_system(time: Res<Time>, mut query: Query<&mut Text>) {
+    for mut text in query.iter_mut() {
+        let seconds = time.seconds_since_startup() as f32;
+        // We used the `Text::with_section` helper method, but it is still just a `Text`,
+        // so to update it, we are still updating the one and only section
+        text.sections[0].style.color = Color::Rgba {
+            red: (1.25 * seconds).sin() / 2.0 + 0.5,
+            green: (0.75 * seconds).sin() / 2.0 + 0.5,
+            blue: (0.50 * seconds).sin() / 2.0 + 0.5,
+            alpha: 1.0,
+        };
+    }
+}
+
+fn text_update_system(diagnostics: Res<Diagnostics>, mut query: Query<&mut Text, With<FpsText>>) {
+    for mut text in query.iter_mut() {
+        if let Some(fps) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
+            if let Some(average) = fps.average() {
+                // Update the value of the second section
+                text.sections[1].value = format!("{:.2}", average);
+            }
+        }
+    }
+}
+
+#[derive(Component)]
+struct FpsText;
 
 pub fn setup_system(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut custom_materials: ResMut<Assets<CustomMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
+    commands.spawn_bundle(UiCameraBundle::default());
+    commands.spawn_bundle(TextBundle {
+        style: Style {
+            align_self: AlignSelf::FlexEnd,
+            position_type: PositionType::Absolute,
+            position: Rect {
+                bottom: Val::Px(5.0),
+                right: Val::Px(15.0),
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        // Use the `Text::with_section` constructor
+        text: Text::with_section(
+            // Accepts a `String` or any type that converts into a `String`, such as `&str`
+            "hello\nbevy!",
+            TextStyle {
+                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                font_size: 100.0,
+                color: Color::WHITE,
+            },
+            // Note: You can use `Default::default()` in place of the `TextAlignment`
+            TextAlignment {
+                horizontal: HorizontalAlign::Center,
+                ..Default::default()
+            },
+        ),
+        ..Default::default()
+    });
+    commands
+        .spawn_bundle(TextBundle {
+            style: Style {
+                align_self: AlignSelf::FlexEnd,
+                ..Default::default()
+            },
+            // Use `Text` directly
+            text: Text {
+                // Construct a `Vec` of `TextSection`s
+                sections: vec![
+                    TextSection {
+                        value: "FPS: ".to_string(),
+                        style: TextStyle {
+                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font_size: 60.0,
+                            color: Color::WHITE,
+                        },
+                    },
+                    TextSection {
+                        value: "".to_string(),
+                        style: TextStyle {
+                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font_size: 60.0,
+                            color: Color::GOLD,
+                        },
+                    },
+                ],
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .insert(FpsText);
+
     commands.spawn_bundle(PbrBundle {
         mesh: meshes.add(Mesh::from(shape::Plane { size: 50.0 })),
         material: materials.add(StandardMaterial {
@@ -51,9 +158,7 @@ pub fn setup_system(
     commands.spawn_bundle(MaterialMeshBundle {
         mesh: meshes.add(Mesh::from(shape::Box::new(5.0, 0.15, 5.0))),
         transform,
-        material: custom_materials.add(CustomMaterial {
-            color: Color::GOLD,
-        }),
+        material: custom_materials.add(CustomMaterial { color: Color::GOLD }),
         ..Default::default()
     });
     // back (right) wall
@@ -70,13 +175,15 @@ pub fn setup_system(
         ..Default::default()
     });
 
-    commands.spawn_bundle(PbrBundle {
+    commands.spawn_bundle(MaterialMeshBundle {
         mesh: meshes.add(Mesh::from(shape::Capsule {
             depth: 1.0,
             radius: 0.25,
             ..Default::default()
         })),
-        material: materials.add(Color::rgb(0.7, 0.3, 0.2).into()),
+        material: custom_materials.add(CustomMaterial {
+            color: Color::GREEN,
+        }), //materials.add(Color::rgb(0.7, 0.3, 0.2).into()),
         ..Default::default()
     });
     commands
