@@ -20,6 +20,7 @@ pub fn explore_mesh(mesh: DelaunayMesh) {
         // .add_system(ui_example)
         // .insert_resource(Msaa { samples: 1 })
         .add_startup_system(setup_system)
+        .add_startup_system(add_lines)
         .run();
 }
 
@@ -31,7 +32,7 @@ fn add_lines(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
     let mut lines = Mesh::new(PrimitiveTopology::LineList);
     let mut v_pos = vec![
         [0., 0., 0.],
-        [1., 1., 0.],
+        [100., 100., 0.],
     ];
     lines.set_attribute(Mesh::ATTRIBUTE_POSITION, v_pos);
 

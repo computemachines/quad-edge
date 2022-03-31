@@ -4,20 +4,26 @@ use bevy::{
     prelude::*,
     reflect::{TypeUuid, Uuid},
     render::{
-        texture::BevyDefault,
         mesh::GpuBufferInfo,
         render_asset::{RenderAsset, RenderAssets},
         render_phase::{
-            AddRenderCommand, EntityRenderCommand, RenderCommandResult, SetItemPipeline,
+            AddRenderCommand, DrawFunctions, EntityRenderCommand, RenderCommandResult, RenderPhase,
+            SetItemPipeline,
         },
         render_resource::{
-            SpecializedPipeline, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode, FragmentState, ColorTargetState, BlendState, ColorWrites, TextureFormat, RenderPipelineDescriptor, PrimitiveState, PrimitiveTopology, FrontFace, PolygonMode, MultisampleState,
+            BlendState, ColorTargetState, ColorWrites, FragmentState, FrontFace, MultisampleState,
+            PolygonMode, PrimitiveState, PrimitiveTopology, RenderPipelineCache,
+            RenderPipelineDescriptor, SpecializedPipeline, SpecializedPipelines, TextureFormat,
+            VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
         },
-        RenderApp,
+        texture::BevyDefault,
+        view::VisibleEntities,
+        RenderApp, RenderStage,
     },
     sprite::{
-        Mesh2dHandle, Mesh2dPipeline, Mesh2dPipelineKey, SetMesh2dBindGroup, SetMesh2dViewBindGroup,
-    },
+        Mesh2dHandle, Mesh2dPipeline, Mesh2dPipelineKey, Mesh2dUniform, SetMesh2dBindGroup,
+        SetMesh2dViewBindGroup,
+    }, core::FloatOrd,
 };
 
 #[derive(Component, Default)]
@@ -40,6 +46,82 @@ impl Plugin for LineMeshPlugin {
             SetMesh2dBindGroup<1>,
             DrawLines2d,
         )>();
+        render_app
+            .init_resource::<LinesMeshPipeline>()
+            .init_resource::<SpecializedPipelines<LinesMeshPipeline>>()
+            .add_system_to_stage(RenderStage::Extract, extract_line_mesh2d)
+            .add_system_to_stage(RenderStage::Queue, queue_line_mesh2d);
+    }
+}
+
+fn extract_line_mesh2d(
+    mut commands: Commands,
+    mut previous_len: Local<usize>,
+    query: Query<(Entity, &ComputedVisibility), With<LineMesh>>,
+) {
+    let mut values = Vec::with_capacity(*previous_len);
+    for (entity, computed_visibility) in query.iter() {
+        if !computed_visibility.is_visible {
+            continue;
+        }
+        values.push((entity, (LineMesh,)));
+    }
+    *previous_len = values.len();
+    commands.insert_or_spawn_batch(values);
+}
+
+fn queue_line_mesh2d(
+    transparent_draw_functions: Res<DrawFunctions<Transparent2d>>,
+    line_mesh2d_pipeline: Res<LinesMeshPipeline>,
+    mut pipelines: ResMut<SpecializedPipelines<LinesMeshPipeline>>,
+    mut pipeline_cache: ResMut<RenderPipelineCache>,
+    msaa: Res<Msaa>,
+    render_meshes: Res<RenderAssets<Mesh>>,
+    line_mesh2d: Query<(&Mesh2dHandle, &Mesh2dUniform), With<LineMesh>>,
+    mut views: Query<(&VisibleEntities, &mut RenderPhase<Transparent2d>)>,
+) {
+    if line_mesh2d.is_empty() {
+        return;
+    }
+    for (visible_entities, mut transparent_phase) in views.iter_mut() {
+        let draw_colored_mesh2d = transparent_draw_functions
+            .read()
+            .get_id::<(
+                SetItemPipeline,
+                SetMesh2dViewBindGroup<0>,
+                SetMesh2dBindGroup<1>,
+                DrawLines2d,
+            )>()
+            .unwrap();
+
+        let mesh_key = Mesh2dPipelineKey::from_msaa_samples(msaa.samples);
+
+        // Queue all entities visible to that view
+        for visible_entity in &visible_entities.entities {
+            if let Ok((mesh2d_handle, mesh2d_uniform)) = line_mesh2d.get(*visible_entity) {
+                // Get our specialized pipeline
+                let mut mesh2d_key = mesh_key;
+                if let Some(mesh) = render_meshes.get(&mesh2d_handle.0) {
+                    mesh2d_key |=
+                        Mesh2dPipelineKey::from_primitive_topology(mesh.primitive_topology);
+                }
+
+                let pipeline_id =
+                    pipelines.specialize(&mut pipeline_cache, &line_mesh2d_pipeline, mesh2d_key);
+
+                let mesh_z = mesh2d_uniform.transform.w_axis.z;
+                transparent_phase.add(Transparent2d {
+                    entity: *visible_entity,
+                    draw_function: draw_colored_mesh2d,
+                    pipeline: pipeline_id,
+                    // The 2d render items are sorted according to their z value before rendering,
+                    // in order to get correct transparency
+                    sort_key: FloatOrd(mesh_z),
+                    // This material is not batched
+                    batch_range: None,
+                });
+            }
+        }
     }
 }
 
@@ -122,13 +204,11 @@ impl SpecializedPipeline for LinesMeshPipeline {
             shader: LINES_MESH_SHADER_HANDLE.typed::<Shader>(),
             shader_defs: vec![],
             entry_point: "fs_main".into(),
-            targets: vec![
-                ColorTargetState {
-                    format: TextureFormat::bevy_default(),
-                    blend: Some(BlendState::ALPHA_BLENDING),
-                    write_mask: ColorWrites::ALL,
-                }
-            ]
+            targets: vec![ColorTargetState {
+                format: TextureFormat::bevy_default(),
+                blend: Some(BlendState::ALPHA_BLENDING),
+                write_mask: ColorWrites::ALL,
+            }],
         };
 
         let bind_groups_layout = vec![
