@@ -35,9 +35,9 @@ impl From<Circle> for Mesh {
                 0.5 * f32::sin(i as f32 * std::f32::consts::TAU / circle.num_segments as f32) + 0.5,
             ])
         }
-        mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, positions);
-        mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
-        mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+        mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+        mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
 
 
         let mut indices = Vec::with_capacity(circle.num_segments);

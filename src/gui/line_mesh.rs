@@ -12,9 +12,9 @@ use bevy::{
         },
         render_resource::{
             BlendState, ColorTargetState, ColorWrites, FragmentState, FrontFace, MultisampleState,
-            PolygonMode, PrimitiveState, PrimitiveTopology, RenderPipelineCache,
-            RenderPipelineDescriptor, SpecializedPipeline, SpecializedPipelines, TextureFormat,
-            VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
+            PolygonMode, PrimitiveState, PrimitiveTopology,
+            RenderPipelineDescriptor, TextureFormat,
+            VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode, SpecializedRenderPipelines, PipelineCache, SpecializedRenderPipeline,
         },
         texture::BevyDefault,
         view::VisibleEntities,
@@ -25,6 +25,32 @@ use bevy::{
         SetMesh2dViewBindGroup,
     }, core::FloatOrd,
 };
+
+// example system
+
+// fn add_lines(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
+//     let mut lines = Mesh::new(PrimitiveTopology::LineList);
+//     let mut v_pos = vec![[0., 0., 0.], [100., 100., 0.]];
+//     lines.set_attribute(Mesh::ATTRIBUTE_POSITION, v_pos);
+
+//     let mut v_color = vec![[1., 0., 0., 1.], [0., 1., 0., 1.]];
+//     lines.set_attribute(Mesh::ATTRIBUTE_COLOR, v_color);
+
+//     let indices: Vec<u32> = vec![0, 1];
+//     lines.set_indices(Some(Indices::U32(indices)));
+
+//     commands.spawn_bundle((
+//         line_mesh::LineMesh::default(),
+//         Mesh2dHandle(meshes.add(lines)),
+//         Transform::default(),
+//         GlobalTransform::default(),
+//         Visibility::default(),
+//         ComputedVisibility::default(),
+//         AnimatedLine,
+//     ));
+// }
+
+
 
 #[derive(Component, Default)]
 pub struct LineMesh;
@@ -48,7 +74,7 @@ impl Plugin for LineMeshPlugin {
         )>();
         render_app
             .init_resource::<LinesMeshPipeline>()
-            .init_resource::<SpecializedPipelines<LinesMeshPipeline>>()
+            .init_resource::<SpecializedRenderPipelines<LinesMeshPipeline>>()
             .add_system_to_stage(RenderStage::Extract, extract_line_mesh2d)
             .add_system_to_stage(RenderStage::Queue, queue_line_mesh2d);
     }
@@ -73,8 +99,8 @@ fn extract_line_mesh2d(
 fn queue_line_mesh2d(
     transparent_draw_functions: Res<DrawFunctions<Transparent2d>>,
     line_mesh2d_pipeline: Res<LinesMeshPipeline>,
-    mut pipelines: ResMut<SpecializedPipelines<LinesMeshPipeline>>,
-    mut pipeline_cache: ResMut<RenderPipelineCache>,
+    mut pipelines: ResMut<SpecializedRenderPipelines<LinesMeshPipeline>>,
+    mut pipeline_cache: ResMut<PipelineCache>,
     msaa: Res<Msaa>,
     render_meshes: Res<RenderAssets<Mesh>>,
     line_mesh2d: Query<(&Mesh2dHandle, &Mesh2dUniform), With<LineMesh>>,
@@ -169,7 +195,7 @@ impl FromWorld for LinesMeshPipeline {
     }
 }
 
-impl SpecializedPipeline for LinesMeshPipeline {
+impl SpecializedRenderPipeline for LinesMeshPipeline {
     type Key = Mesh2dPipelineKey;
 
     fn specialize(

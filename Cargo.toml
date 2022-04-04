@@ -6,9 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-gui = ["bevy"]
+gui = []
 
 [dependencies]
 cgmath = "0.18.0"
-bevy = { version = "0.6", optional = true, features = ["dynamic"] }
-bevy_egui = "0.12"
+bevy = { path = "../bevy", features = ["dynamic"] }
+# bevy_egui = "0.12"
