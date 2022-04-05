@@ -9,6 +9,8 @@ var<uniform> mesh: Mesh2d;
 struct Vertex {
     [[location(0)]] position: vec3<f32>;
     [[location(1)]] color: vec4<f32>;
+    [[location(2)]] i_position: vec3<f32>;
+    [[location(3)]] i_color: vec4<f32>;
 };
 struct VertexOutput {
     // The vertex shader must set the on-screen position of the vertex
@@ -21,8 +23,8 @@ struct VertexOutput {
 fn vs_main(vertex: Vertex) -> VertexOutput {
     var out: VertexOutput;
     // Project the world position of the mesh into screen position
-    out.clip_position = view.view_proj * mesh.model * vec4<f32>(vertex.position, 1.0);
-    out.color = vertex.color;
+    out.clip_position = view.view_proj * mesh.model * vec4<f32>(vertex.position + vertex.i_position, 1.0);
+    out.color = vertex.i_color;
     return out;
 }
 // The input of the fragment shader must correspond to the output of the vertex shader for all `location`s

@@ -1,4 +1,5 @@
 use bevy::{
+    core::{FloatOrd, Pod, Zeroable},
     core_pipeline::Transparent2d,
     ecs::system::lifetimeless::{Read, SQuery, SRes},
     prelude::*,
@@ -6,16 +7,19 @@ use bevy::{
     render::{
         mesh::GpuBufferInfo,
         render_asset::{RenderAsset, RenderAssets},
+        render_component::{ExtractComponent, ExtractComponentPlugin},
         render_phase::{
             AddRenderCommand, DrawFunctions, EntityRenderCommand, RenderCommandResult, RenderPhase,
             SetItemPipeline,
         },
         render_resource::{
-            BlendState, ColorTargetState, ColorWrites, FragmentState, FrontFace, MultisampleState,
-            PolygonMode, PrimitiveState, PrimitiveTopology, RenderPipelineCache,
-            RenderPipelineDescriptor, SpecializedPipeline, SpecializedPipelines, TextureFormat,
-            VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
+            BlendState, Buffer, BufferInitDescriptor, BufferUsages, ColorTargetState, ColorWrites,
+            FragmentState, FrontFace, MultisampleState, PolygonMode, PrimitiveState,
+            PrimitiveTopology, RenderPipelineCache, RenderPipelineDescriptor, SpecializedPipeline,
+            SpecializedPipelines, TextureFormat, VertexAttribute, VertexBufferLayout, VertexFormat,
+            VertexState, VertexStepMode,
         },
+        renderer::RenderDevice,
         texture::BevyDefault,
         view::VisibleEntities,
         RenderApp, RenderStage,
@@ -23,74 +27,94 @@ use bevy::{
     sprite::{
         Mesh2dHandle, Mesh2dPipeline, Mesh2dPipelineKey, Mesh2dUniform, SetMesh2dBindGroup,
         SetMesh2dViewBindGroup,
-    }, core::FloatOrd,
+    },
 };
 
-#[derive(Component, Default)]
-pub struct LineMesh;
+#[derive(Bundle, Debug, Clone)]
+pub struct ArrowBundle {
+    pub arrow: Arrow,
+    pub origin: Transform,
+    pub global: GlobalTransform,
+    pub visible: Visibility,
+    pub computed_visibility: ComputedVisibility,
+    // pub local_head: ArrowHead
+    pub instances: InstanceMaterialData,
+}
 
-pub const LINES_MESH_SHADER_HANDLE: HandleUntyped =
+#[derive(Component, Default, Debug, Clone)]
+pub struct Arrow;
+
+#[derive(Component, Debug, Clone)]
+pub struct ArrowHead(pub Transform);
+
+pub const TWO_TRANSFORM_INTER_SHADER_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Shader::TYPE_UUID, 0x97391c0926e9d409);
-pub struct LineMeshPlugin;
-impl Plugin for LineMeshPlugin {
+pub struct ArrowPlugin;
+impl Plugin for ArrowPlugin {
     fn build(&self, app: &mut App) {
         let mut shaders = app.world.get_resource_mut::<Assets<Shader>>().unwrap();
         shaders.set_untracked(
-            LINES_MESH_SHADER_HANDLE,
-            Shader::from_wgsl(include_str!("../../assets/shaders/line_mesh.wgsl")),
+            TWO_TRANSFORM_INTER_SHADER_HANDLE,
+            Shader::from_wgsl(include_str!("../../assets/shaders/two_interp.wgsl")),
         );
+        app.add_plugin(ExtractComponentPlugin::<InstanceMaterialData>::default());
         let render_app = app.get_sub_app_mut(RenderApp).unwrap();
         render_app.add_render_command::<Transparent2d, (
             SetItemPipeline,
             SetMesh2dViewBindGroup<0>,
             SetMesh2dBindGroup<1>,
-            DrawLines2d,
+            DrawArrowInstanced,
         )>();
         render_app
-            .init_resource::<LinesMeshPipeline>()
-            .init_resource::<SpecializedPipelines<LinesMeshPipeline>>()
-            .add_system_to_stage(RenderStage::Extract, extract_line_mesh2d)
-            .add_system_to_stage(RenderStage::Queue, queue_line_mesh2d);
+            .init_resource::<ArrowInstancePipeline>()
+            .init_resource::<SpecializedPipelines<ArrowInstancePipeline>>()
+            .add_system_to_stage(RenderStage::Queue, queue_arrow_instances)
+            .add_system_to_stage(RenderStage::Prepare, prepare_instance_buffers);
     }
 }
 
-fn extract_line_mesh2d(
-    mut commands: Commands,
-    mut previous_len: Local<usize>,
-    query: Query<(Entity, &ComputedVisibility), With<LineMesh>>,
-) {
-    let mut values = Vec::with_capacity(*previous_len);
-    for (entity, computed_visibility) in query.iter() {
-        if !computed_visibility.is_visible {
-            continue;
-        }
-        values.push((entity, (LineMesh,)));
+#[derive(Component, Default, Debug, Clone)]
+pub struct InstanceMaterialData(pub Vec<InstanceData>);
+impl ExtractComponent for InstanceMaterialData {
+    type Query = &'static InstanceMaterialData;
+    type Filter = ();
+
+    fn extract_component(item: bevy::ecs::query::QueryItem<Self::Query>) -> Self {
+        InstanceMaterialData(item.0.clone())
     }
-    *previous_len = values.len();
-    commands.insert_or_spawn_batch(values);
 }
 
-fn queue_line_mesh2d(
+#[derive(Clone, Copy, Pod, Zeroable, Debug)]
+#[repr(C)]
+pub struct InstanceData {
+    pub position: Vec3,
+    pub color: [f32; 4],
+}
+
+fn queue_arrow_instances(
     transparent_draw_functions: Res<DrawFunctions<Transparent2d>>,
-    line_mesh2d_pipeline: Res<LinesMeshPipeline>,
-    mut pipelines: ResMut<SpecializedPipelines<LinesMeshPipeline>>,
+    arrow_instance_pipeline: Res<ArrowInstancePipeline>,
+    mut pipelines: ResMut<SpecializedPipelines<ArrowInstancePipeline>>,
     mut pipeline_cache: ResMut<RenderPipelineCache>,
     msaa: Res<Msaa>,
     render_meshes: Res<RenderAssets<Mesh>>,
-    line_mesh2d: Query<(&Mesh2dHandle, &Mesh2dUniform), With<LineMesh>>,
+    arrow_instances: Query<
+        (Entity, &Mesh2dHandle, &Mesh2dUniform),
+        (With<Mesh2dHandle>, With<InstanceMaterialData>),
+    >,
     mut views: Query<(&VisibleEntities, &mut RenderPhase<Transparent2d>)>,
 ) {
-    if line_mesh2d.is_empty() {
-        return;
-    }
+    // if arrow_instances.is_empty() {
+    // return;
+    // }
     for (visible_entities, mut transparent_phase) in views.iter_mut() {
-        let draw_colored_mesh2d = transparent_draw_functions
+        let draw_arrow_instanced = transparent_draw_functions
             .read()
             .get_id::<(
                 SetItemPipeline,
                 SetMesh2dViewBindGroup<0>,
                 SetMesh2dBindGroup<1>,
-                DrawLines2d,
+                DrawArrowInstanced,
             )>()
             .unwrap();
 
@@ -98,7 +122,9 @@ fn queue_line_mesh2d(
 
         // Queue all entities visible to that view
         for visible_entity in &visible_entities.entities {
-            if let Ok((mesh2d_handle, mesh2d_uniform)) = line_mesh2d.get(*visible_entity) {
+            if let Ok((entity, mesh2d_handle, mesh2d_uniform)) =
+                arrow_instances.get(*visible_entity)
+            {
                 // Get our specialized pipeline
                 let mut mesh2d_key = mesh_key;
                 if let Some(mesh) = render_meshes.get(&mesh2d_handle.0) {
@@ -107,12 +133,12 @@ fn queue_line_mesh2d(
                 }
 
                 let pipeline_id =
-                    pipelines.specialize(&mut pipeline_cache, &line_mesh2d_pipeline, mesh2d_key);
+                    pipelines.specialize(&mut pipeline_cache, &arrow_instance_pipeline, mesh2d_key);
 
                 let mesh_z = mesh2d_uniform.transform.w_axis.z;
                 transparent_phase.add(Transparent2d {
                     entity: *visible_entity,
-                    draw_function: draw_colored_mesh2d,
+                    draw_function: draw_arrow_instanced,
                     pipeline: pipeline_id,
                     // The 2d render items are sorted according to their z value before rendering,
                     // in order to get correct transparency
@@ -125,19 +151,54 @@ fn queue_line_mesh2d(
     }
 }
 
-struct DrawLines2d;
-impl EntityRenderCommand for DrawLines2d {
-    type Param = (SRes<RenderAssets<Mesh>>, SQuery<Read<Mesh2dHandle>>);
+#[derive(Component, Debug)]
+struct InstanceBuffer {
+    buffer: Buffer,
+    length: u32,
+}
+
+fn prepare_instance_buffers(
+    mut commands: Commands,
+    query: Query<(Entity, &InstanceMaterialData)>,
+    render_device: Res<RenderDevice>,
+) {
+    for (entity, instance_data) in query.iter() {
+        let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
+            label: Some("Instance buffer data"),
+            contents: bytemuck::cast_slice(instance_data.0.as_slice()),
+            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+        });
+        commands.entity(entity).insert(InstanceBuffer {
+            buffer,
+            length: instance_data.0.len() as u32,
+        });
+    }
+}
+
+struct DrawArrowInstanced;
+impl EntityRenderCommand for DrawArrowInstanced {
+    type Param = (
+        SRes<RenderAssets<Mesh>>,
+        SQuery<Read<Mesh2dHandle>>,
+        SQuery<Read<InstanceBuffer>>,
+    );
 
     fn render<'w>(
         view: Entity,
         item: Entity,
-        (meshes, mesh2d_query): bevy::ecs::system::SystemParamItem<'w, '_, Self::Param>,
+        (meshes, mesh2d_query, instance_buffer_query): bevy::ecs::system::SystemParamItem<
+            'w,
+            '_,
+            Self::Param,
+        >,
         pass: &mut bevy::render::render_phase::TrackedRenderPass<'w>,
     ) -> bevy::render::render_phase::RenderCommandResult {
         let mesh_handle = &mesh2d_query.get(item).unwrap().0;
+        let instance_buffer = instance_buffer_query.get(item).unwrap();
+
         if let Some(gpu_mesh) = meshes.into_inner().get(mesh_handle) {
             pass.set_vertex_buffer(0, gpu_mesh.vertex_buffer.slice(..));
+            pass.set_vertex_buffer(1, instance_buffer.buffer.slice(..));
             match &gpu_mesh.buffer_info {
                 GpuBufferInfo::Indexed {
                     buffer,
@@ -145,7 +206,7 @@ impl EntityRenderCommand for DrawLines2d {
                     count,
                 } => {
                     pass.set_index_buffer(buffer.slice(..), 0, *index_format);
-                    pass.draw_indexed(0..*count, 0, 0..1);
+                    pass.draw_indexed(0..*count, 0, 0..instance_buffer.length);
                 }
                 GpuBufferInfo::NonIndexed { vertex_count } => {
                     pass.draw(0..*vertex_count, 0..1);
@@ -158,10 +219,10 @@ impl EntityRenderCommand for DrawLines2d {
     }
 }
 
-struct LinesMeshPipeline {
+struct ArrowInstancePipeline {
     mesh2d_pipeline: Mesh2dPipeline,
 }
-impl FromWorld for LinesMeshPipeline {
+impl FromWorld for ArrowInstancePipeline {
     fn from_world(world: &mut World) -> Self {
         Self {
             mesh2d_pipeline: Mesh2dPipeline::from_world(world),
@@ -169,7 +230,7 @@ impl FromWorld for LinesMeshPipeline {
     }
 }
 
-impl SpecializedPipeline for LinesMeshPipeline {
+impl SpecializedPipeline for ArrowInstancePipeline {
     type Key = Mesh2dPipelineKey;
 
     fn specialize(
@@ -177,12 +238,12 @@ impl SpecializedPipeline for LinesMeshPipeline {
         key: Self::Key,
     ) -> bevy::render::render_resource::RenderPipelineDescriptor {
         let vertex_attributes = vec![
-            VertexAttribute {
+            VertexAttribute { //position
                 format: VertexFormat::Float32x3,
                 offset: 16, // size of color attribute. bevy stores attributes in alphabetical order.
                 shader_location: 0, // location of the position attribute
             },
-            VertexAttribute {
+            VertexAttribute { // color
                 format: VertexFormat::Float32x3,
                 offset: 0,
                 shader_location: 1,
@@ -190,18 +251,38 @@ impl SpecializedPipeline for LinesMeshPipeline {
         ];
         let vertex_array_stride = 28; // 3*4 + 4*4
 
+        let instance_vertex_attributes = vec![
+            VertexAttribute {
+                format: VertexFormat::Float32x3,
+                offset: 0,
+                shader_location: 2,
+            },
+            VertexAttribute {
+                format: VertexFormat::Float32x4,
+                offset: VertexFormat::Float32x3.size(),
+                shader_location: 3,
+            },
+        ];
+
         let vertex_state = VertexState {
-            shader: LINES_MESH_SHADER_HANDLE.typed::<Shader>(),
+            shader: TWO_TRANSFORM_INTER_SHADER_HANDLE.typed::<Shader>(),
             entry_point: "vs_main".into(),
             shader_defs: vec![],
-            buffers: vec![VertexBufferLayout {
-                array_stride: vertex_array_stride,
-                step_mode: VertexStepMode::Vertex,
-                attributes: vertex_attributes,
-            }],
+            buffers: vec![
+                VertexBufferLayout {
+                    array_stride: vertex_array_stride,
+                    step_mode: VertexStepMode::Vertex,
+                    attributes: vertex_attributes,
+                },
+                VertexBufferLayout {
+                    array_stride: std::mem::size_of::<InstanceData>() as u64,
+                    step_mode: VertexStepMode::Instance,
+                    attributes: instance_vertex_attributes,
+                },
+            ],
         };
         let fragment_state = FragmentState {
-            shader: LINES_MESH_SHADER_HANDLE.typed::<Shader>(),
+            shader: TWO_TRANSFORM_INTER_SHADER_HANDLE.typed::<Shader>(),
             shader_defs: vec![],
             entry_point: "fs_main".into(),
             targets: vec![ColorTargetState {
@@ -217,7 +298,7 @@ impl SpecializedPipeline for LinesMeshPipeline {
         ];
 
         RenderPipelineDescriptor {
-            label: Some("Line mesh pipeline".into()),
+            label: Some("arrow instance pipeline".into()),
             layout: Some(bind_groups_layout),
             vertex: vertex_state,
             primitive: PrimitiveState {
