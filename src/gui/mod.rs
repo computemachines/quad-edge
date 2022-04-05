@@ -5,7 +5,7 @@ use bevy::{prelude::*, render::mesh::Indices};
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::render::render_resource::PrimitiveTopology;
 
-use bevy_egui::{egui, EguiContext, EguiPlugin};
+// use bevy_egui::{egui, EguiContext, EguiPlugin};
 use quad_edge::delaunay_voronoi::DelaunayMesh;
 
 
