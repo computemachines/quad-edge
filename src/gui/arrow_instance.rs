@@ -30,21 +30,21 @@ use bevy::{
     },
 };
 
-#[derive(Bundle, Debug, Clone)]
+#[derive(Bundle, )]
 pub struct ArrowBundle {
-    pub arrow: Arrow,
-    pub origin: Transform,
-    pub global: GlobalTransform,
+    pub arrow: Arrows,
+    // pub origin: Transform,
+    // pub global: GlobalTransform,
     pub visible: Visibility,
     pub computed_visibility: ComputedVisibility,
     // pub local_head: ArrowHead
-    pub instances: InstanceMaterialData,
+    pub instances: ArrowInstances,
 }
 
-#[derive(Component, Default, Debug, Clone)]
-pub struct Arrow;
+#[derive(Component)]
+pub struct Arrows;
 
-#[derive(Component, Debug, Clone)]
+#[derive(Component)]
 pub struct ArrowHead(pub Transform);
 
 pub const TWO_TRANSFORM_INTER_SHADER_HANDLE: HandleUntyped =
@@ -57,7 +57,7 @@ impl Plugin for ArrowPlugin {
             TWO_TRANSFORM_INTER_SHADER_HANDLE,
             Shader::from_wgsl(include_str!("../../assets/shaders/two_interp.wgsl")),
         );
-        app.add_plugin(ExtractComponentPlugin::<InstanceMaterialData>::default());
+        app.add_plugin(ExtractComponentPlugin::<ArrowInstances>::default());
         let render_app = app.get_sub_app_mut(RenderApp).unwrap();
         render_app.add_render_command::<Transparent2d, (
             SetItemPipeline,
@@ -74,21 +74,21 @@ impl Plugin for ArrowPlugin {
 }
 
 #[derive(Component, Default, Debug, Clone)]
-pub struct InstanceMaterialData(pub Vec<InstanceData>);
-impl ExtractComponent for InstanceMaterialData {
-    type Query = &'static InstanceMaterialData;
+pub struct ArrowInstances(pub Vec<ArrowInstance>);
+impl ExtractComponent for ArrowInstances {
+    type Query = &'static ArrowInstances;
     type Filter = ();
 
     fn extract_component(item: bevy::ecs::query::QueryItem<Self::Query>) -> Self {
-        InstanceMaterialData(item.0.clone())
+        ArrowInstances(item.0.clone())
     }
 }
 
 #[derive(Clone, Copy, Pod, Zeroable, Debug)]
 #[repr(C)]
-pub struct InstanceData {
-    pub position: Vec3,
-    pub color: [f32; 4],
+pub struct ArrowInstance {
+    pub tail_position: Vec3,
+    pub head_position: Vec3,
 }
 
 fn queue_arrow_instances(
@@ -100,7 +100,7 @@ fn queue_arrow_instances(
     render_meshes: Res<RenderAssets<Mesh>>,
     arrow_instances: Query<
         (Entity, &Mesh2dHandle, &Mesh2dUniform),
-        (With<Mesh2dHandle>, With<InstanceMaterialData>),
+        (With<Mesh2dHandle>, With<ArrowInstances>),
     >,
     mut views: Query<(&VisibleEntities, &mut RenderPhase<Transparent2d>)>,
 ) {
@@ -159,7 +159,7 @@ struct InstanceBuffer {
 
 fn prepare_instance_buffers(
     mut commands: Commands,
-    query: Query<(Entity, &InstanceMaterialData)>,
+    query: Query<(Entity, &ArrowInstances)>,
     render_device: Res<RenderDevice>,
 ) {
     for (entity, instance_data) in query.iter() {
@@ -240,7 +240,7 @@ impl SpecializedPipeline for ArrowInstancePipeline {
         let vertex_attributes = vec![
             VertexAttribute { //position
                 format: VertexFormat::Float32x3,
-                offset: 16, // size of color attribute. bevy stores attributes in alphabetical order.
+                offset: 16, // size of color attribute. bevy stores MESH::*_ATTRIBUTES in alphabetical order.
                 shader_location: 0, // location of the position attribute
             },
             VertexAttribute { // color
@@ -275,7 +275,7 @@ impl SpecializedPipeline for ArrowInstancePipeline {
                     attributes: vertex_attributes,
                 },
                 VertexBufferLayout {
-                    array_stride: std::mem::size_of::<InstanceData>() as u64,
+                    array_stride: std::mem::size_of::<ArrowInstance>() as u64,
                     step_mode: VertexStepMode::Instance,
                     attributes: instance_vertex_attributes,
                 },

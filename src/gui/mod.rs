@@ -39,13 +39,13 @@ fn add_lines(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
     lines.set_indices(Some(Indices::U32(indices)));
 
     let instances = vec![
-        arrow_instance::InstanceData {
-            position: Vec3::new(0.0, 0.0, 0.0),
-            color: [1.0, 0.0, 0.0, 1.0],
+        arrow_instance::ArrowInstance {
+            tail_position: Vec3::new(0.0, 0.0, 0.0),
+            head_position: Vec3::new(100.0, 0.0, 0.0),
         },
-        arrow_instance::InstanceData {
-            position: Vec3::new(100.0, 0.0, 0.0),
-            color: [1.0, 0.0, 1.0, 1.0],
+        arrow_instance::ArrowInstance {
+            tail_position: Vec3::new(0.0, -300.0, 0.0),
+            head_position: Vec3::new(100.0, -300.0, 0.0),
         },
     ];
 
@@ -53,9 +53,9 @@ fn add_lines(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
 
     commands.spawn_bundle((
         // arrow_instance::ArrowHead(Transform::from_translation(Vec3::X)),
-        arrow_instance::Arrow,
+        arrow_instance::Arrows,
         Mesh2dHandle(meshes.add(lines)),
-        arrow_instance::InstanceMaterialData(instances),
+        arrow_instance::ArrowInstances(instances),
         Transform::default(),
         GlobalTransform::default(),
         Visibility::default(),
