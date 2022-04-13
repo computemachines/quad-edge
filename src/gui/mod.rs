@@ -8,6 +8,8 @@ use bevy::{prelude::*, render::mesh::Indices};
 // use bevy_egui::{egui, EguiContext, EguiPlugin};
 use quad_edge::delaunay_voronoi::DelaunayMesh;
 
+use self::arrow_instance::{ArrowBundle, ArrowHead};
+
 pub fn explore_mesh(mesh: DelaunayMesh) {
     App::new()
         .add_plugins(DefaultPlugins)
@@ -29,36 +31,27 @@ fn setup_system(mut commands: Commands) {
 
 fn add_lines(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
     let mut lines = Mesh::new(PrimitiveTopology::LineList);
-    let mut v_pos = vec![[0., 0., 0.], [100., 100., 0.]];
+    let v_pos = vec![[0., 0., 0.], [100., 100., 0.]];
     lines.set_attribute(Mesh::ATTRIBUTE_POSITION, v_pos);
 
-    let mut v_color = vec![[1., 0., 0., 1.], [0., 1., 0., 1.]];
+    let v_color = vec![[1., 0., 0., 1.], [0., 1., 0., 1.]];
     lines.set_attribute(Mesh::ATTRIBUTE_COLOR, v_color);
 
     let indices: Vec<u32> = vec![0, 1];
     lines.set_indices(Some(Indices::U32(indices)));
 
-    let instances = vec![
-        arrow_instance::ArrowInstance {
-            tail_position: Vec3::new(0.0, 0.0, 0.0),
-            head_position: Vec3::new(100.0, 0.0, 0.0),
-        },
-        arrow_instance::ArrowInstance {
-            tail_position: Vec3::new(0.0, -300.0, 0.0),
-            head_position: Vec3::new(100.0, -300.0, 0.0),
-        },
-    ];
+    let mesh_handle = Mesh2dHandle(meshes.add(lines));
 
-    println!("{:?}", instances);
-
-    commands.spawn_bundle((
-        // arrow_instance::ArrowHead(Transform::from_translation(Vec3::X)),
-        arrow_instance::Arrows,
-        Mesh2dHandle(meshes.add(lines)),
-        arrow_instance::ArrowInstances(instances),
-        Transform::default(),
-        GlobalTransform::default(),
-        Visibility::default(),
-        ComputedVisibility::default(),
-    ));
+    commands.spawn_bundle(ArrowBundle {
+        mesh: mesh_handle.clone(),
+        tail: Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
+        head: ArrowHead(Transform::from_translation(Vec3::new(150.0, 50.0, 0.0))),
+        ..Default::default()
+    });
+    commands.spawn_bundle(ArrowBundle {
+        mesh: mesh_handle.clone(),
+        tail: Transform::from_translation(Vec3::new(200.0, 0.0, 0.0)),
+        head: ArrowHead(Transform::from_translation(Vec3::new(350.0, 50.0, 0.0))),
+        ..Default::default()
+    });
 }
