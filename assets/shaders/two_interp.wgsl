@@ -8,10 +8,11 @@ var<uniform> mesh: Mesh2d;
 
 // The structure of the vertex buffer is as specified in `specialize()`
 struct Vertex {
-    [[location(0)]] position: vec3<f32>;
-    [[location(1)]] color: vec4<f32>;
-    [[location(2)]] i_position: vec3<f32>;
-    [[location(3)]] i_color: vec4<f32>;
+    [[location(0)]] color: vec4<f32>;
+    [[location(1)]] position: vec3<f32>;
+    [[location(2)]] weight: f32;
+    [[location(3)]] i_tail: vec3<f32>;
+    [[location(4)]] i_head: vec3<f32>;
 };
 
 struct VertexOutput {
@@ -26,8 +27,8 @@ struct VertexOutput {
 fn vs_main(vertex: Vertex) -> VertexOutput {
     var out: VertexOutput;
     // Project the world position of the mesh into screen position
-    out.clip_position = view.view_proj * mesh.model * vec4<f32>(vertex.position, 1.0);
-    out.color = vec4<f32>(0.0, 1.0, 0.0, 1.0);
+    out.clip_position = view.view_proj * vec4<f32>(vertex.position, 1.0);
+    out.color = vertex.color;
     return out;
 }
 

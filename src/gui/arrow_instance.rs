@@ -28,6 +28,7 @@ use bevy::{
         Mesh2dHandle, Mesh2dPipeline, Mesh2dPipelineKey, Mesh2dUniform, SetMesh2dBindGroup,
         SetMesh2dViewBindGroup,
     },
+    utils::HashMap,
 };
 
 pub const TWO_TRANSFORM_INTER_SHADER_HANDLE: HandleUntyped =
@@ -58,6 +59,11 @@ impl Plugin for ArrowPlugin {
     }
 }
 
+pub const ATTRIBUTE_WEIGHT: &'static str = "Vertex_Weight";
+
+#[derive(Component, Default)]
+pub struct ArrowFrame;
+
 #[derive(Bundle, Default)]
 pub struct ArrowsBundle {
     pub mesh: Mesh2dHandle,
@@ -67,7 +73,7 @@ pub struct ArrowsBundle {
     pub visible: Visibility,
     pub computed_visibility: ComputedVisibility,
 
-    pub instances: ArrowInstances,
+    pub arrow_frame_marker: ArrowFrame,
 }
 
 #[derive(Component, Default, Debug, Clone)]
@@ -87,26 +93,26 @@ pub struct Arrow(pub Transform, pub Transform, pub Entity);
 fn extract_arrow_instances(
     mut commands: Commands,
     arrows: Query<&Arrow>,
-    mut query: Query<(&GlobalTransform, &mut ArrowInstances)>,
+    global_transforms: Query<&GlobalTransform>,
 ) {
-    info!("extract arrow instances system");
-    for (_, mut arrow_instance) in query.iter_mut() {
-        info!("clearing arrow instances");
-        arrow_instance.0.clear();
-    }
+    let mut arrows_by_type = HashMap::default();
 
-    for Arrow(tail, head, arrow_entity) in arrows.iter() {
+    for Arrow(tail, head, entity) in arrows.iter() {
+        let mut arrows = arrows_by_type.entry(*entity).or_insert(Vec::new());
+
         info!("Extract Arrow into ArrowInstance for rendering");
-        if let Ok((transform, mut arrow_instances)) = query.get_mut(*arrow_entity) {
-            info!("Found arrow_type parent");
-            arrow_instances.0.push(ArrowInstance {
+        if let Ok(transform) = global_transforms.get(*entity) {
+            arrows.push(ArrowInstance {
                 head_global_transform: transform.mul_transform(*head).translation,
                 tail_global_transform: transform.mul_transform(*tail).translation,
             });
-            commands.get_or_spawn(*arrow_entity).insert(QueueArrowInstanced);
-        } else {
-            warn!("Found arrow_type with broken parent");
+            commands.get_or_spawn(*entity).insert(QueueArrowInstanced);
         }
+    }
+    for (arrow_type, arrows) in arrows_by_type.drain() {
+        commands
+            .get_or_spawn(arrow_type)
+            .insert(ArrowInstances(arrows));
     }
 }
 
@@ -158,7 +164,6 @@ fn queue_arrow_instances(
                 let pipeline_id =
                     pipelines.specialize(&mut pipeline_cache, &arrow_instance_pipeline, mesh2d_key);
 
-
                 let mesh_z = mesh2d_uniform.transform.w_axis.z;
                 transparent_phase.add(Transparent2d {
                     entity: *visible_entity,
@@ -188,6 +193,7 @@ fn prepare_instance_buffers(
     query: Query<(Entity, &ArrowInstances)>,
     render_device: Res<RenderDevice>,
 ) {
+    info!("Running prepare instance buffer system");
     for (entity, instance_data) in query.iter() {
         info!("prepare instance buffer data");
         let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
@@ -199,6 +205,7 @@ fn prepare_instance_buffers(
             buffer,
             length: instance_data.0.len() as u32,
         });
+        info!("Added instance buffer to entity: {:?}", entity);
     }
 }
 
@@ -221,6 +228,7 @@ impl EntityRenderCommand for DrawArrowInstanced {
         pass: &mut bevy::render::render_phase::TrackedRenderPass<'w>,
     ) -> bevy::render::render_phase::RenderCommandResult {
         let mesh_handle = &mesh2d_query.get(item).unwrap().0;
+        info!("DrawArrowInstanced#render({:?})", item);
         let instance_buffer = instance_buffer_query.get(item).unwrap();
 
         if let Some(gpu_mesh) = meshes.into_inner().get(mesh_handle) {
@@ -267,29 +275,35 @@ impl SpecializedPipeline for ArrowInstancePipeline {
         let vertex_attributes = vec![
             VertexAttribute {
                 // color
-                format: VertexFormat::Float32x3,
+                format: VertexFormat::Float32x4,
                 offset: 0,
-                shader_location: 1,
+                shader_location: 0,
             },
             VertexAttribute {
                 //position
                 format: VertexFormat::Float32x3,
                 offset: 16, // size of color attribute. bevy stores MESH::*_ATTRIBUTES in alphabetical order.
-                shader_location: 0, // location of the position attribute
+                shader_location: 1, // location of the position attribute
             },
+            VertexAttribute {
+                // weight
+                format: VertexFormat::Float32,
+                offset: 28,
+                shader_location: 2,
+            }
         ];
-        let vertex_array_stride = 24; // 3*4 + 3*4
+        let vertex_array_stride = 3*4 + 3*4;
 
         let instance_vertex_attributes = vec![
             VertexAttribute {
                 format: VertexFormat::Float32x3,
                 offset: 0,
-                shader_location: 2, // tail origin
+                shader_location: 3, // tail origin
             },
             VertexAttribute {
                 format: VertexFormat::Float32x3,
                 offset: VertexFormat::Float32x3.size(),
-                shader_location: 3, // head origin
+                shader_location: 4, // head origin
             },
         ];
 
@@ -331,7 +345,7 @@ impl SpecializedPipeline for ArrowInstancePipeline {
             layout: Some(bind_groups_layout),
             vertex: vertex_state,
             primitive: PrimitiveState {
-                topology: PrimitiveTopology::LineList, //key.primitive_topology(),
+                topology: key.primitive_topology(),
                 strip_index_format: None,
                 front_face: FrontFace::Ccw,
                 cull_mode: None,

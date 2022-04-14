@@ -8,7 +8,7 @@ use bevy::{prelude::*, render::mesh::Indices};
 // use bevy_egui::{egui, EguiContext, EguiPlugin};
 use quad_edge::delaunay_voronoi::DelaunayMesh;
 
-use self::arrow_instance::{Arrow, ArrowInstances, ArrowsBundle};
+use self::arrow_instance::{Arrow, ArrowInstances, ArrowsBundle, ATTRIBUTE_WEIGHT};
 
 pub fn explore_mesh(mesh: DelaunayMesh) {
     App::new()
@@ -27,22 +27,44 @@ pub fn explore_mesh(mesh: DelaunayMesh) {
 
 fn setup_system(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    
+    let mut lines = Mesh::new(PrimitiveTopology::TriangleList);
 
-    let mut lines = Mesh::new(PrimitiveTopology::LineList);
-    let v_pos = vec![[0., 0., 0.], [100., 100., 0.]];
-    lines.set_attribute(Mesh::ATTRIBUTE_POSITION, v_pos);
-
-    let v_color = vec![[1., 0., 0., 1.], [0., 1., 0., 1.]];
+    let v_color = vec![[0.1, 0.2, 0.3, 0.4], [0.5, 0.6, 0.7, 0.8], [1.0, 0.0, 0.0, 1.0]];
     lines.set_attribute(Mesh::ATTRIBUTE_COLOR, v_color);
 
-    let indices: Vec<u32> = vec![0, 1];
+    let v_pos = vec![[10.0, 11.0, 12.0], [20.0, 21.0, 22.0], [-100.0, 0.0, 0.0]];
+    lines.set_attribute(Mesh::ATTRIBUTE_POSITION, v_pos);
+
+    let indices: Vec<u32> = vec![0, 1, 2];
     lines.set_indices(Some(Indices::U32(indices)));
 
+    lines.set_attribute(ATTRIBUTE_WEIGHT, vec![0.15625, 0.99, 0.5]);
+
+    {
+        let data = lines.get_vertex_buffer_data();
+        let mut iter = data.iter();
+        let mut count = 0;
+        while let Some(val) = iter.next() {
+            if count % 4 == 0 {
+                println!("");
+            }
+            if count % 16 == 0 {
+                println!("");
+                println!("");
+            }
+            print!("{:02X?} ", val);
+            count += 1;
+        }
+    }
+    println!("");
+    println!("");
     let mesh_handle = Mesh2dHandle(meshes.add(lines));
+    
+
 
     let entity = commands.spawn_bundle(ArrowsBundle {
         mesh: mesh_handle,
-        instances: ArrowInstances(Vec::new()),
         ..Default::default()
     }).id();
     
