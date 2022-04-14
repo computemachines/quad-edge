@@ -8,7 +8,7 @@ use bevy::{prelude::*, render::mesh::Indices};
 // use bevy_egui::{egui, EguiContext, EguiPlugin};
 use quad_edge::delaunay_voronoi::DelaunayMesh;
 
-use self::arrow_instance::{ArrowBundle, ArrowHead};
+use self::arrow_instance::{Arrow, ArrowInstances, ArrowsBundle};
 
 pub fn explore_mesh(mesh: DelaunayMesh) {
     App::new()
@@ -21,15 +21,13 @@ pub fn explore_mesh(mesh: DelaunayMesh) {
         // .add_system(ui_example)
         // .insert_resource(Msaa { samples: 1 })
         .add_startup_system(setup_system)
-        .add_startup_system(add_lines)
+        .add_system(debug)
         .run();
 }
 
-fn setup_system(mut commands: Commands) {
+fn setup_system(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
-}
 
-fn add_lines(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
     let mut lines = Mesh::new(PrimitiveTopology::LineList);
     let v_pos = vec![[0., 0., 0.], [100., 100., 0.]];
     lines.set_attribute(Mesh::ATTRIBUTE_POSITION, v_pos);
@@ -42,16 +40,22 @@ fn add_lines(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
 
     let mesh_handle = Mesh2dHandle(meshes.add(lines));
 
-    commands.spawn_bundle(ArrowBundle {
-        mesh: mesh_handle.clone(),
-        tail: Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
-        head: ArrowHead(Transform::from_translation(Vec3::new(150.0, 50.0, 0.0))),
+    let entity = commands.spawn_bundle(ArrowsBundle {
+        mesh: mesh_handle,
+        instances: ArrowInstances(Vec::new()),
         ..Default::default()
-    });
-    commands.spawn_bundle(ArrowBundle {
-        mesh: mesh_handle.clone(),
-        tail: Transform::from_translation(Vec3::new(200.0, 0.0, 0.0)),
-        head: ArrowHead(Transform::from_translation(Vec3::new(350.0, 50.0, 0.0))),
-        ..Default::default()
-    });
+    }).id();
+    
+    commands.spawn().insert(Arrow(
+        Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
+        Transform::from_translation(Vec3::new(0.0, 100.0, 0.0)),
+        entity,
+    ));
+}
+
+fn debug(query: Query<(Entity, &ArrowInstances)>){
+    info!("debug");
+    for a in query.iter() {
+        info!("{:?}", a);
+    }
 }

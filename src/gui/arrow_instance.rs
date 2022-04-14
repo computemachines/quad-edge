@@ -5,7 +5,7 @@ use bevy::{
     prelude::*,
     reflect::{TypeUuid, Uuid},
     render::{
-        mesh::GpuBufferInfo,
+        mesh::{GpuBufferInfo, Indices},
         render_asset::{RenderAsset, RenderAssets},
         render_component::{ExtractComponent, ExtractComponentPlugin},
         render_phase::{
@@ -29,23 +29,6 @@ use bevy::{
         SetMesh2dViewBindGroup,
     },
 };
-
-#[derive(Bundle, Default)]
-pub struct ArrowBundle {
-    // pub arrow: Arrows,
-    pub mesh: Mesh2dHandle,
-    pub tail: Transform,
-    pub global: GlobalTransform,
-    pub visible: Visibility,
-    pub computed_visibility: ComputedVisibility,
-    pub head: ArrowHead, // pub instances: ArrowInstances,
-}
-
-#[derive(Component)]
-pub struct Arrows;
-
-#[derive(Component, Default)]
-pub struct ArrowHead(pub Transform);
 
 pub const TWO_TRANSFORM_INTER_SHADER_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Shader::TYPE_UUID, 0x97391c0926e9d409);
@@ -75,41 +58,60 @@ impl Plugin for ArrowPlugin {
     }
 }
 
-fn extract_arrow_instances(
-    commands: Commands,
-    query: Query<(&ArrowHead, &GlobalTransform, &Mesh2dHandle)>,
-    mut arrow_instances: ResMut<ArrowInstances>,
-) {
-    arrow_instances.0.clear();
-    for (arrow_head, tail_transform, mesh2d_handle) in query.iter() {
-        info!("Extract ArrowHead into ArrowInstance.");
-        arrow_instances.0.push(ArrowInstance {
-            head_global_transform: arrow_head.0.translation.clone(),
-            tail_global_transform: tail_transform.translation.clone(),
-        });
-        *arrow_instances.1 = mesh2d_handle;
-    }
+#[derive(Bundle, Default)]
+pub struct ArrowsBundle {
+    pub mesh: Mesh2dHandle,
+
+    pub local: Transform,
+    pub global: GlobalTransform,
+    pub visible: Visibility,
+    pub computed_visibility: ComputedVisibility,
+
+    pub instances: ArrowInstances,
 }
 
-#[derive(Default, Debug, Clone)]
-struct ArrowInstances(pub Vec<ArrowInstance>, Mesh2dHandle);
-// impl ExtractComponent for ArrowInstances {
-//     type Query = &'static ArrowInstances;
-//     type Filter = ();
-
-//     fn extract_component(item: bevy::ecs::query::QueryItem<Self::Query>) -> Self {
-//         info!("Extract ArrowInstances(.)");
-//         ArrowInstances(item.0.clone())
-//     }
-// }
+#[derive(Component, Default, Debug, Clone)]
+pub struct ArrowInstances(pub Vec<ArrowInstance>);
 
 // Array of ArrowInstances are passed to GPU as an Instance Buffer
 #[derive(Clone, Copy, Pod, Zeroable, Debug)]
 #[repr(C)]
-struct ArrowInstance {
+pub struct ArrowInstance {
     pub tail_global_transform: Vec3,
     pub head_global_transform: Vec3,
 }
+
+#[derive(Component)]
+pub struct Arrow(pub Transform, pub Transform, pub Entity);
+
+fn extract_arrow_instances(
+    mut commands: Commands,
+    arrows: Query<&Arrow>,
+    mut query: Query<(&GlobalTransform, &mut ArrowInstances)>,
+) {
+    info!("extract arrow instances system");
+    for (_, mut arrow_instance) in query.iter_mut() {
+        info!("clearing arrow instances");
+        arrow_instance.0.clear();
+    }
+
+    for Arrow(tail, head, arrow_entity) in arrows.iter() {
+        info!("Extract Arrow into ArrowInstance for rendering");
+        if let Ok((transform, mut arrow_instances)) = query.get_mut(*arrow_entity) {
+            info!("Found arrow_type parent");
+            arrow_instances.0.push(ArrowInstance {
+                head_global_transform: transform.mul_transform(*head).translation,
+                tail_global_transform: transform.mul_transform(*tail).translation,
+            });
+            commands.get_or_spawn(*arrow_entity).insert(QueueArrowInstanced);
+        } else {
+            warn!("Found arrow_type with broken parent");
+        }
+    }
+}
+
+#[derive(Component)]
+struct QueueArrowInstanced;
 
 fn queue_arrow_instances(
     transparent_draw_functions: Res<DrawFunctions<Transparent2d>>,
@@ -117,14 +119,16 @@ fn queue_arrow_instances(
     mut pipelines: ResMut<SpecializedPipelines<ArrowInstancePipeline>>,
     mut pipeline_cache: ResMut<RenderPipelineCache>,
     msaa: Res<Msaa>,
+    arrow_instances: Query<(&Mesh2dHandle, &Mesh2dUniform), With<QueueArrowInstanced>>,
     render_meshes: Res<RenderAssets<Mesh>>,
-    arrow_instances: Res<ArrowInstances>,
     mut views: Query<(&VisibleEntities, &mut RenderPhase<Transparent2d>)>,
 ) {
+    info!("queue arrow instances system");
     // if arrow_instances.is_empty() {
     // return;
     // }
     for (visible_entities, mut transparent_phase) in views.iter_mut() {
+        info!("queue view");
         let draw_arrow_instanced = transparent_draw_functions
             .read()
             .get_id::<(
@@ -139,9 +143,11 @@ fn queue_arrow_instances(
 
         // Queue all entities visible to that view
         for visible_entity in &visible_entities.entities {
-            if let Ok((mesh2d_handle, mesh2d_uniform)) =
-                arrow_instances.get(*visible_entity)
-            {
+            info!("queue visible entity");
+
+            if let Ok((mesh2d_handle, mesh2d_uniform)) = arrow_instances.get(*visible_entity) {
+                info!("entity is arrow_instances");
+
                 // Get our specialized pipeline
                 let mut mesh2d_key = mesh_key;
                 if let Some(mesh) = render_meshes.get(&mesh2d_handle.0) {
@@ -151,6 +157,7 @@ fn queue_arrow_instances(
 
                 let pipeline_id =
                     pipelines.specialize(&mut pipeline_cache, &arrow_instance_pipeline, mesh2d_key);
+
 
                 let mesh_z = mesh2d_uniform.transform.w_axis.z;
                 transparent_phase.add(Transparent2d {
@@ -163,6 +170,8 @@ fn queue_arrow_instances(
                     // This material is not batched
                     batch_range: None,
                 });
+            } else {
+                info!("entity is not arrow_instances");
             }
         }
     }
@@ -180,6 +189,7 @@ fn prepare_instance_buffers(
     render_device: Res<RenderDevice>,
 ) {
     for (entity, instance_data) in query.iter() {
+        info!("prepare instance buffer data");
         let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
             label: Some("Instance buffer data"),
             contents: bytemuck::cast_slice(instance_data.0.as_slice()),
@@ -256,30 +266,30 @@ impl SpecializedPipeline for ArrowInstancePipeline {
     ) -> bevy::render::render_resource::RenderPipelineDescriptor {
         let vertex_attributes = vec![
             VertexAttribute {
-                //position
-                format: VertexFormat::Float32x3,
-                offset: 16, // size of color attribute. bevy stores MESH::*_ATTRIBUTES in alphabetical order.
-                shader_location: 0, // location of the position attribute
-            },
-            VertexAttribute {
                 // color
                 format: VertexFormat::Float32x3,
                 offset: 0,
                 shader_location: 1,
             },
+            VertexAttribute {
+                //position
+                format: VertexFormat::Float32x3,
+                offset: 16, // size of color attribute. bevy stores MESH::*_ATTRIBUTES in alphabetical order.
+                shader_location: 0, // location of the position attribute
+            },
         ];
-        let vertex_array_stride = 28; // 3*4 + 4*4
+        let vertex_array_stride = 24; // 3*4 + 3*4
 
         let instance_vertex_attributes = vec![
             VertexAttribute {
                 format: VertexFormat::Float32x3,
                 offset: 0,
-                shader_location: 2,
+                shader_location: 2, // tail origin
             },
             VertexAttribute {
-                format: VertexFormat::Float32x4,
+                format: VertexFormat::Float32x3,
                 offset: VertexFormat::Float32x3.size(),
-                shader_location: 3,
+                shader_location: 3, // head origin
             },
         ];
 
