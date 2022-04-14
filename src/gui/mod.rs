@@ -29,35 +29,17 @@ fn setup_system(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
     
     let mut lines = Mesh::new(PrimitiveTopology::TriangleList);
 
-    let v_color = vec![[0.1, 0.2, 0.3, 0.4], [0.5, 0.6, 0.7, 0.8], [1.0, 0.0, 0.0, 1.0]];
+    let v_color = vec![[1.0, 0.0, 0.0, 1.0], [0.0, 1.0, 0.0, 1.0], [0.0, 0.0, 1.0, 1.0], [0.0, 0.0, 0.0, 1.0]];
     lines.set_attribute(Mesh::ATTRIBUTE_COLOR, v_color);
 
-    let v_pos = vec![[10.0, 11.0, 12.0], [20.0, 21.0, 22.0], [-100.0, 0.0, 0.0]];
+    let v_pos = vec![[0.0, 2.0, 0.0], [0.0, -2.0, 0.0], [0.0, 2.0, 0.0], [0.0, -2.0, 0.0]];
     lines.set_attribute(Mesh::ATTRIBUTE_POSITION, v_pos);
 
-    let indices: Vec<u32> = vec![0, 2, 1];
+    let indices: Vec<u32> = vec![0, 2, 1, 2, 1, 3];
     lines.set_indices(Some(Indices::U32(indices)));
 
-    lines.set_attribute(ATTRIBUTE_WEIGHT, vec![0.15625, 0.99, 0.5]);
+    lines.set_attribute(ATTRIBUTE_WEIGHT, vec![0.2, 0.2, 1.0, 1.0]);
 
-    {
-        let data = lines.get_vertex_buffer_data();
-        let mut iter = data.iter();
-        let mut count = 0;
-        while let Some(val) = iter.next() {
-            if count % 4 == 0 {
-                println!("");
-            }
-            if count % 16 == 0 {
-                println!("");
-                println!("");
-            }
-            print!("{:02X?} ", val);
-            count += 1;
-        }
-    }
-    println!("");
-    println!("");
     let mesh_handle = Mesh2dHandle(meshes.add(lines));
     
 
@@ -68,8 +50,18 @@ fn setup_system(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
     }).id();
     
     commands.spawn().insert(Arrow(
+        Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
         Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
-        Transform::from_translation(Vec3::new(0.0, 100.0, 0.0)),
+        entity,
+    ));
+    commands.spawn().insert(Arrow(
+        Transform::from_translation(Vec3::new(-100.0, 250.0, 0.0)).with_scale(Vec3::new(10.0, 10.0, 10.0)),
+        Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
+        entity,
+    ));
+    commands.spawn().insert(Arrow(
+        Transform::from_translation(Vec3::new(70.0, 70.0, 0.0)),
+        Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
         entity,
     ));
 }
