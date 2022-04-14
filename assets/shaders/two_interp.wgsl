@@ -11,8 +11,15 @@ struct Vertex {
     [[location(0)]] color: vec4<f32>;
     [[location(1)]] position: vec3<f32>;
     [[location(2)]] weight: f32;
-    [[location(3)]] i_tail: vec3<f32>;
-    [[location(4)]] i_head: vec3<f32>;
+    [[location(3)]] i_tail_0: vec4<f32>;
+    [[location(4)]] i_tail_1: vec4<f32>;
+    [[location(5)]] i_tail_2: vec4<f32>;
+    [[location(6)]] i_tail_3: vec4<f32>;
+
+    [[location(7)]] i_head_0: vec4<f32>;
+    [[location(8)]] i_head_1: vec4<f32>;
+    [[location(9)]] i_head_2: vec4<f32>;
+    [[location(10)]] i_head_3: vec4<f32>;
 };
 
 struct VertexOutput {
@@ -22,12 +29,35 @@ struct VertexOutput {
     [[location(0)]] color: vec4<f32>;
 };
 
+
+/// HACK: This works around naga not supporting matrix addition in SPIR-V 
+// translations. See https://github.com/gfx-rs/naga/issues/1527
+fn add_matrix(
+    a: mat4x4<f32>,
+    b: mat4x4<f32>,
+) -> mat4x4<f32> {
+    return mat4x4<f32>(
+        a.x + b.x,
+        a.y + b.y,
+        a.z + b.z,
+        a.w + b.w,
+    );
+}
+
+
 /// Entry point for the vertex shader
 [[stage(vertex)]]
 fn vs_main(vertex: Vertex) -> VertexOutput {
     var out: VertexOutput;
     // Project the world position of the mesh into screen position
-    out.clip_position = view.view_proj * vec4<f32>(vertex.position, 1.0);
+
+    var i_head: mat4x4<f32> = (1.0 - vertex.weight) * mat4x4<f32>(vertex.i_head_0, vertex.i_head_1, vertex.i_head_2, vertex.i_head_3);
+    var i_tail: mat4x4<f32> = vertex.weight * mat4x4<f32>(vertex.i_tail_0, vertex.i_tail_1, vertex.i_tail_2, vertex.i_tail_3);
+
+    var interp_model: mat4x4<f32> = add_matrix(i_head, i_tail);
+
+    // var interp_model: mat4x4<f32> = vertex.weight * i_tail + (1.0 - vertex.weight) * i_head;
+    out.clip_position = view.view_proj * mesh.model * interp_model * vec4<f32>(vertex.position, 1.0);
     out.color = vertex.color;
     return out;
 }

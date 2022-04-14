@@ -83,8 +83,8 @@ pub struct ArrowInstances(pub Vec<ArrowInstance>);
 #[derive(Clone, Copy, Pod, Zeroable, Debug)]
 #[repr(C)]
 pub struct ArrowInstance {
-    pub tail_global_transform: Vec3,
-    pub head_global_transform: Vec3,
+    pub tail_global_transform: Mat4,
+    pub head_global_transform: Mat4,
 }
 
 #[derive(Component)]
@@ -100,11 +100,11 @@ fn extract_arrow_instances(
     for Arrow(tail, head, entity) in arrows.iter() {
         let mut arrows = arrows_by_type.entry(*entity).or_insert(Vec::new());
 
-        info!("Extract Arrow into ArrowInstance for rendering");
+        // info!("Extract Arrow into ArrowInstance for rendering");
         if let Ok(transform) = global_transforms.get(*entity) {
             arrows.push(ArrowInstance {
-                head_global_transform: transform.mul_transform(*head).translation,
-                tail_global_transform: transform.mul_transform(*tail).translation,
+                head_global_transform: transform.mul_transform(*head).compute_matrix(),
+                tail_global_transform: transform.mul_transform(*tail).compute_matrix(),
             });
             commands.get_or_spawn(*entity).insert(QueueArrowInstanced);
         }
@@ -129,12 +129,12 @@ fn queue_arrow_instances(
     render_meshes: Res<RenderAssets<Mesh>>,
     mut views: Query<(&VisibleEntities, &mut RenderPhase<Transparent2d>)>,
 ) {
-    info!("queue arrow instances system");
+    // info!("queue arrow instances system");
     // if arrow_instances.is_empty() {
     // return;
     // }
     for (visible_entities, mut transparent_phase) in views.iter_mut() {
-        info!("queue view");
+        // info!("queue view");
         let draw_arrow_instanced = transparent_draw_functions
             .read()
             .get_id::<(
@@ -149,10 +149,10 @@ fn queue_arrow_instances(
 
         // Queue all entities visible to that view
         for visible_entity in &visible_entities.entities {
-            info!("queue visible entity");
+            // info!("queue visible entity");
 
             if let Ok((mesh2d_handle, mesh2d_uniform)) = arrow_instances.get(*visible_entity) {
-                info!("entity is arrow_instances");
+                // info!("entity is arrow_instances");
 
                 // Get our specialized pipeline
                 let mut mesh2d_key = mesh_key;
@@ -176,7 +176,7 @@ fn queue_arrow_instances(
                     batch_range: None,
                 });
             } else {
-                info!("entity is not arrow_instances");
+                // info!("entity is not arrow_instances");
             }
         }
     }
@@ -193,9 +193,9 @@ fn prepare_instance_buffers(
     query: Query<(Entity, &ArrowInstances)>,
     render_device: Res<RenderDevice>,
 ) {
-    info!("Running prepare instance buffer system");
+    // info!("Running prepare instance buffer system");
     for (entity, instance_data) in query.iter() {
-        info!("prepare instance buffer data");
+        // info!("prepare instance buffer data");
         let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
             label: Some("Instance buffer data"),
             contents: bytemuck::cast_slice(instance_data.0.as_slice()),
@@ -205,7 +205,7 @@ fn prepare_instance_buffers(
             buffer,
             length: instance_data.0.len() as u32,
         });
-        info!("Added instance buffer to entity: {:?}", entity);
+        // info!("Added instance buffer to entity: {:?}", entity);
     }
 }
 
@@ -228,7 +228,7 @@ impl EntityRenderCommand for DrawArrowInstanced {
         pass: &mut bevy::render::render_phase::TrackedRenderPass<'w>,
     ) -> bevy::render::render_phase::RenderCommandResult {
         let mesh_handle = &mesh2d_query.get(item).unwrap().0;
-        info!("DrawArrowInstanced#render({:?})", item);
+        // info!("DrawArrowInstanced#render({:?})", item);
         let instance_buffer = instance_buffer_query.get(item).unwrap();
 
         if let Some(gpu_mesh) = meshes.into_inner().get(mesh_handle) {
@@ -292,18 +292,50 @@ impl SpecializedPipeline for ArrowInstancePipeline {
                 shader_location: 2,
             }
         ];
-        let vertex_array_stride = 3*4 + 3*4;
+        let vertex_array_stride = 3*4 + 4*4 + 4;
 
         let instance_vertex_attributes = vec![
             VertexAttribute {
-                format: VertexFormat::Float32x3,
+                format: VertexFormat::Float32x4,
                 offset: 0,
-                shader_location: 3, // tail origin
+                shader_location: 3, // tail transform row 0
             },
             VertexAttribute {
-                format: VertexFormat::Float32x3,
-                offset: VertexFormat::Float32x3.size(),
-                shader_location: 4, // head origin
+                format: VertexFormat::Float32x4,
+                offset: 16,
+                shader_location: 4, // tail transform 1
+            },
+            VertexAttribute {
+                format: VertexFormat::Float32x4,
+                offset: 16*2,
+                shader_location: 5, // tail transform 2
+            },
+            VertexAttribute {
+                format: VertexFormat::Float32x4,
+                offset: 16*3,
+                shader_location: 6, // tail transform 3
+            },
+
+
+            VertexAttribute {
+                format: VertexFormat::Float32x4,
+                offset: 16*4,
+                shader_location: 7, // head transform row 0
+            },
+            VertexAttribute {
+                format: VertexFormat::Float32x4,
+                offset: 16*5,
+                shader_location: 8, // head transform row 1
+            },
+            VertexAttribute {
+                format: VertexFormat::Float32x4,
+                offset: 16*6,
+                shader_location: 9, // head transform row 2
+            },
+            VertexAttribute {
+                format: VertexFormat::Float32x4,
+                offset: 16*7,
+                shader_location: 10, // head transform row 3
             },
         ];
 
@@ -350,7 +382,7 @@ impl SpecializedPipeline for ArrowInstancePipeline {
                 front_face: FrontFace::Ccw,
                 cull_mode: None,
                 unclipped_depth: false,
-                polygon_mode: PolygonMode::Line,
+                polygon_mode: PolygonMode::Fill,
                 conservative: false,
             },
             depth_stencil: None,

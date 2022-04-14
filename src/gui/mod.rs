@@ -21,7 +21,6 @@ pub fn explore_mesh(mesh: DelaunayMesh) {
         // .add_system(ui_example)
         // .insert_resource(Msaa { samples: 1 })
         .add_startup_system(setup_system)
-        .add_system(debug)
         .run();
 }
 
@@ -36,7 +35,7 @@ fn setup_system(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
     let v_pos = vec![[10.0, 11.0, 12.0], [20.0, 21.0, 22.0], [-100.0, 0.0, 0.0]];
     lines.set_attribute(Mesh::ATTRIBUTE_POSITION, v_pos);
 
-    let indices: Vec<u32> = vec![0, 1, 2];
+    let indices: Vec<u32> = vec![0, 2, 1];
     lines.set_indices(Some(Indices::U32(indices)));
 
     lines.set_attribute(ATTRIBUTE_WEIGHT, vec![0.15625, 0.99, 0.5]);
@@ -73,11 +72,4 @@ fn setup_system(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
         Transform::from_translation(Vec3::new(0.0, 100.0, 0.0)),
         entity,
     ));
-}
-
-fn debug(query: Query<(Entity, &ArrowInstances)>){
-    info!("debug");
-    for a in query.iter() {
-        info!("{:?}", a);
-    }
 }
