@@ -1,4 +1,5 @@
 mod arrow_instance;
+mod arrow_shapes;
 
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::render::render_resource::PrimitiveTopology;
@@ -8,9 +9,12 @@ use bevy::{prelude::*, render::mesh::Indices};
 // use bevy_egui::{egui, EguiContext, EguiPlugin};
 use quad_edge::delaunay_voronoi::DelaunayMesh;
 
-use self::arrow_instance::{Arrow, ArrowInstances, ArrowsBundle, ATTRIBUTE_WEIGHT};
+use self::arrow_instance::{Arrow, ArrowFrame, ArrowsBundle, ATTRIBUTE_WEIGHT};
 
-pub fn explore_mesh(mesh: DelaunayMesh) {
+#[derive(Component, Default)]
+struct MousePosition(Vec2);
+
+pub fn explore_mesh(_mesh: DelaunayMesh) {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(arrow_instance::ArrowPlugin)
@@ -20,65 +24,96 @@ pub fn explore_mesh(mesh: DelaunayMesh) {
         // or after the `EguiSystem::BeginFrame` system (which belongs to the `CoreStage::PreUpdate` stage).
         // .add_system(ui_example)
         // .insert_resource(Msaa { samples: 1 })
-        .add_startup_system(setup_system)
+        .init_resource::<MousePosition>()
+        .add_startup_system_to_stage(StartupStage::PreStartup, setup_default_arrow_frame.label("default arrow frame"))
+        .add_startup_system(setup_system.after("default arrow frame"))
         .add_system(animate_arrows)
+        .add_system_to_stage(CoreStage::PreUpdate, update_mouse_position)
+        .add_system(clicked)
         .run();
 }
 
-fn setup_system(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
-    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+fn cursor_position_to_model_2d(window: &Window, position: Vec2) -> Vec2 {
+    Vec2::new(
+        position.x - 0.5 * window.width(),
+        position.y - 0.5 * window.height(),
+    )
+}
 
-    let mut lines = Mesh::new(PrimitiveTopology::TriangleList);
+fn update_mouse_position(
+    windows: Res<Windows>,
+    mut mouse_position: ResMut<MousePosition>,
+    mut cursor_moved_events: EventReader<CursorMoved>,
+    mut arrows: Query<&mut Arrow>,
+) {
+    if let Some(cursor_moved) = cursor_moved_events.iter().last().take() {
+        mouse_position.0 =
+            cursor_position_to_model_2d(windows.get_primary().unwrap(), cursor_moved.position);
+        for mut arrow in arrows.iter_mut() {
+            arrow.1.translation = (mouse_position.0, 0.0).into();
+        }
+    }
+}
 
-    let v_color = vec![
-        [1.0, 0.0, 0.0, 1.0],
-        [0.0, 1.0, 0.0, 1.0],
-        [0.0, 0.0, 1.0, 1.0],
-        [0.0, 0.0, 0.0, 1.0],
-    ];
-    lines.set_attribute(Mesh::ATTRIBUTE_COLOR, v_color);
+fn clicked(
+    mut commands: Commands,
+    mouse_position: Res<MousePosition>,
+    mouse_button_input: Res<Input<MouseButton>>,
+    entity: Query<Entity, With<ArrowFrame>>,
+) {
+    let transform = Transform::from_translation((mouse_position.0, 0.0).into());
+    if mouse_button_input.just_pressed(MouseButton::Left) {
+        commands
+            .spawn()
+            .insert(Arrow(transform.clone(), transform, entity.single()));
+    }
+}
 
-    let v_pos = vec![
-        [0.0, 2.0, 0.0],
-        [0.0, -2.0, 0.0],
-        [0.0, 2.0, 0.0],
-        [0.0, -2.0, 0.0],
-    ];
-    lines.set_attribute(Mesh::ATTRIBUTE_POSITION, v_pos);
+pub fn setup_default_arrow_frame(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    asset_server: Res<AssetServer>,
+) {
+    let mesh_handle = Mesh2dHandle(meshes.add(arrow_shapes::build_line_mesh()));
 
-    let indices: Vec<u32> = vec![0, 2, 1, 2, 1, 3];
-    lines.set_indices(Some(Indices::U32(indices)));
+    let texture_handle: Handle<Image> = asset_server.load("images/arrow_atlas.png");
 
-    lines.set_attribute(ATTRIBUTE_WEIGHT, vec![0.2, 0.2, 1.0, 1.0]);
-
-    let mesh_handle = Mesh2dHandle(meshes.add(lines));
-
-    let entity = commands
+    commands
         .spawn_bundle(ArrowsBundle {
             mesh: mesh_handle,
+            arrow_frame_marker: ArrowFrame::default(),
             ..Default::default()
-        })
-        .id();
+        });
+}
 
-    commands.spawn().insert(Arrow(
-        Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
-        Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
-        entity,
-    ));
-    commands
-        .spawn()
-        .insert(Arrow(
-            Transform::from_translation(Vec3::new(-100.0, 250.0, 0.0))
-                .with_scale(Vec3::new(10.0, 10.0, 10.0)),
-            Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
-            entity,
-        ))
-        .insert(Animated);
-    commands.spawn().insert(Arrow(
-        Transform::from_translation(Vec3::new(70.0, 70.0, 0.0)),
-        Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
-        entity,
-    ));
+fn setup_system(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    asset_server: Res<AssetServer>,
+    entity: Query<Entity, With<ArrowFrame>>,
+) {
+    let entity = entity.single();
+    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+
+    // commands.spawn().insert(Arrow(
+    //     Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+    //     Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
+    //     entity,
+    // ));
+    // commands
+    //     .spawn()
+    //     .insert(Arrow(
+    //         Transform::from_translation(Vec3::new(-100.0, 250.0, 0.0))
+    //             .with_scale(Vec3::new(10.0, 10.0, 10.0)),
+    //         Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
+    //         entity,
+    //     ))
+    //     .insert(Animated);
+    // commands.spawn().insert(Arrow(
+    //     Transform::from_translation(Vec3::new(70.0, 70.0, 0.0)),
+    //     Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
+    //     entity,
+    // ));
 }
 
 #[derive(Component)]
@@ -86,6 +121,6 @@ struct Animated;
 
 fn animate_arrows(time: Res<Time>, mut arrows: Query<&mut Arrow, With<Animated>>) {
     for mut arrow in arrows.iter_mut() {
-        arrow.0.translation.y = 250.0 - 10.0* time.seconds_since_startup() as f32;
+        arrow.0.translation.y = 250.0 - 10.0 * time.seconds_since_startup() as f32;
     }
 }

@@ -13,11 +13,13 @@ use bevy::{
             SetItemPipeline,
         },
         render_resource::{
-            BlendState, Buffer, BufferInitDescriptor, BufferUsages, ColorTargetState, ColorWrites,
-            FragmentState, FrontFace, MultisampleState, PolygonMode, PrimitiveState,
-            PrimitiveTopology, RenderPipelineCache, RenderPipelineDescriptor, SpecializedPipeline,
-            SpecializedPipelines, TextureFormat, VertexAttribute, VertexBufferLayout, VertexFormat,
-            VertexState, VertexStepMode,
+            BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType,
+            BlendState, Buffer, BufferBindingType, BufferInitDescriptor, BufferUsages,
+            ColorTargetState, ColorWrites, FragmentState, FrontFace, MultisampleState, PolygonMode,
+            PrimitiveState, PrimitiveTopology, RenderPipelineCache, RenderPipelineDescriptor,
+            ShaderStages, SpecializedPipeline, SpecializedPipelines, TextureFormat,
+            TextureSampleType, TextureViewDimension, VertexAttribute, VertexBufferLayout,
+            VertexFormat, VertexState, VertexStepMode, SamplerBindingType,
         },
         renderer::RenderDevice,
         texture::BevyDefault,
@@ -31,8 +33,10 @@ use bevy::{
     utils::HashMap,
 };
 
+// Randomly generated UUID
 pub const TWO_TRANSFORM_INTER_SHADER_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Shader::TYPE_UUID, 0x97391c0926e9d409);
+
 pub struct ArrowPlugin;
 impl Plugin for ArrowPlugin {
     fn build(&self, app: &mut App) {
@@ -41,29 +45,35 @@ impl Plugin for ArrowPlugin {
             TWO_TRANSFORM_INTER_SHADER_HANDLE,
             Shader::from_wgsl(include_str!("../../assets/shaders/two_interp.wgsl")),
         );
-        // app.add_plugin(ExtractComponentPlugin::<ArrowInstances>::default());
+
         let render_app = app.get_sub_app_mut(RenderApp).unwrap();
+
         render_app.add_render_command::<Transparent2d, (
             SetItemPipeline,
             SetMesh2dViewBindGroup<0>,
             SetMesh2dBindGroup<1>,
             DrawArrowInstanced,
         )>();
+
         render_app
             .init_resource::<ArrowInstancePipeline>()
             .init_resource::<SpecializedPipelines<ArrowInstancePipeline>>()
-            .init_resource::<ArrowInstances>()
             .add_system_to_stage(RenderStage::Extract, extract_arrow_instances)
             .add_system_to_stage(RenderStage::Queue, queue_arrow_instances)
             .add_system_to_stage(RenderStage::Prepare, prepare_instance_buffers);
     }
 }
 
+// name for vertex attribute. Bevy puts attributes in alphabetical order.
 pub const ATTRIBUTE_WEIGHT: &'static str = "Vertex_Weight";
 
+// Marker component for `ArrowsBundle`.
 #[derive(Component, Default)]
 pub struct ArrowFrame;
 
+// Set of components that represent a 'frame' or 'stage' that all arrows of the same shape are drawn on.
+// Moving the `ArrowsBundle` moves all the `Arrow`s that are linked to it as if they were in a Parent-Child relationship.
+// So far this is the only way to parent an `Arrow`.
 #[derive(Bundle, Default)]
 pub struct ArrowsBundle {
     pub mesh: Mesh2dHandle,
@@ -73,13 +83,16 @@ pub struct ArrowsBundle {
     pub visible: Visibility,
     pub computed_visibility: ComputedVisibility,
 
+    // Marker Component
     pub arrow_frame_marker: ArrowFrame,
 }
 
+// A Render `World` component. Used to build the instance buffers in the `RenderStage::Prepare` phase.
 #[derive(Component, Default, Debug, Clone)]
 pub struct ArrowInstances(pub Vec<ArrowInstance>);
 
 // Array of ArrowInstances are passed to GPU as an Instance Buffer
+// TODO: reduce the size of this. Instances do not need the full transform matrix.
 #[derive(Clone, Copy, Pod, Zeroable, Debug)]
 #[repr(C)]
 pub struct ArrowInstance {
@@ -87,9 +100,20 @@ pub struct ArrowInstance {
     pub head_global_transform: Mat4,
 }
 
+// Represents an arrow with tail transform, head transform, and `ArrowsBundle` entity.
+// Example usage:
+// fn add_arrow(mut commands: Commands, arrow_frame: Query<Entity, With<ArrowFrame>>) {
+//     commands.spawn().insert(Arrow(
+//        Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+//        Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
+//        arrow_frame.single(),
+//    ));
+// }
 #[derive(Component)]
 pub struct Arrow(pub Transform, pub Transform, pub Entity);
 
+// Extract user `Arrow` components into rendering `World`.
+// Each 'arrow type' is represented by a different `ArrowsBundle`.
 fn extract_arrow_instances(
     mut commands: Commands,
     arrows: Query<&Arrow>,
@@ -100,41 +124,45 @@ fn extract_arrow_instances(
     for Arrow(tail, head, entity) in arrows.iter() {
         let mut arrows = arrows_by_type.entry(*entity).or_insert(Vec::new());
 
-        // info!("Extract Arrow into ArrowInstance for rendering");
         if let Ok(transform) = global_transforms.get(*entity) {
             arrows.push(ArrowInstance {
                 head_global_transform: transform.mul_transform(*head).compute_matrix(),
                 tail_global_transform: transform.mul_transform(*tail).compute_matrix(),
             });
-            commands.get_or_spawn(*entity).insert(QueueArrowInstanced);
         }
     }
+
+    // insert the collected arrow instances onto the ArrowFrame and mark as ready to be queued.
     for (arrow_type, arrows) in arrows_by_type.drain() {
         commands
             .get_or_spawn(arrow_type)
-            .insert(ArrowInstances(arrows));
+            .insert(ArrowInstances(arrows))
+            .insert(QueueArrowInstanced);
     }
 }
 
 #[derive(Component)]
 struct QueueArrowInstanced;
 
+// Queue up the custom EntityRenderCommand useing the specialized pipeline.
 fn queue_arrow_instances(
     transparent_draw_functions: Res<DrawFunctions<Transparent2d>>,
     arrow_instance_pipeline: Res<ArrowInstancePipeline>,
     mut pipelines: ResMut<SpecializedPipelines<ArrowInstancePipeline>>,
     mut pipeline_cache: ResMut<RenderPipelineCache>,
     msaa: Res<Msaa>,
+
+    // I'm not sure where this Mesh2dUniform comes from?
     arrow_instances: Query<(&Mesh2dHandle, &Mesh2dUniform), With<QueueArrowInstanced>>,
     render_meshes: Res<RenderAssets<Mesh>>,
     mut views: Query<(&VisibleEntities, &mut RenderPhase<Transparent2d>)>,
 ) {
-    // info!("queue arrow instances system");
-    // if arrow_instances.is_empty() {
-    // return;
-    // }
+    info!("queue");
+    if arrow_instances.is_empty() {
+        return;
+    }
     for (visible_entities, mut transparent_phase) in views.iter_mut() {
-        // info!("queue view");
+        info!("queue view");
         let draw_arrow_instanced = transparent_draw_functions
             .read()
             .get_id::<(
@@ -149,10 +177,10 @@ fn queue_arrow_instances(
 
         // Queue all entities visible to that view
         for visible_entity in &visible_entities.entities {
-            // info!("queue visible entity");
+            info!("queue visible entity");
 
             if let Ok((mesh2d_handle, mesh2d_uniform)) = arrow_instances.get(*visible_entity) {
-                // info!("entity is arrow_instances");
+                info!("queue visible arrow_instance: {:?}", visible_entity);
 
                 // Get our specialized pipeline
                 let mut mesh2d_key = mesh_key;
@@ -182,12 +210,17 @@ fn queue_arrow_instances(
     }
 }
 
+// The render world component that holds GPU buffer of `ArrowInstances` data.
 #[derive(Component, Debug)]
 struct InstanceBuffer {
+    // GPU buffer with data copied from `ArrowInstances`.
     buffer: Buffer,
     length: u32,
 }
 
+// Create the instance buffer on the GPU with copied data.
+// Insert the `InstanceBuffer` into the source `ArrowInstances` entity.
+// Bevy calls this before the EntityRenderCommands, `render`.
 fn prepare_instance_buffers(
     mut commands: Commands,
     query: Query<(Entity, &ArrowInstances)>,
@@ -209,6 +242,7 @@ fn prepare_instance_buffers(
     }
 }
 
+// The `EntityRenderCommand` that performs the actual draw calls.
 struct DrawArrowInstanced;
 impl EntityRenderCommand for DrawArrowInstanced {
     type Param = (
@@ -254,13 +288,41 @@ impl EntityRenderCommand for DrawArrowInstanced {
     }
 }
 
+// Render pipeline for `ArrowInstances`.
 struct ArrowInstancePipeline {
     mesh2d_pipeline: Mesh2dPipeline,
+    texture_layout: BindGroupLayout,
 }
 impl FromWorld for ArrowInstancePipeline {
     fn from_world(world: &mut World) -> Self {
+        let mesh2d_pipeline = Mesh2dPipeline::from_world(world);
+        let render_device = world.get_resource::<RenderDevice>().unwrap();
+
+        let texture_layout = render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: Some("Arrow texture bind group layout"),
+            entries: &[
+                BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Texture {
+                        sample_type: TextureSampleType::Float { filterable: true },
+                        view_dimension: TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Sampler(SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+        });
+
         Self {
-            mesh2d_pipeline: Mesh2dPipeline::from_world(world),
+            mesh2d_pipeline,
+            texture_layout,
         }
     }
 }
@@ -268,6 +330,7 @@ impl FromWorld for ArrowInstancePipeline {
 impl SpecializedPipeline for ArrowInstancePipeline {
     type Key = Mesh2dPipelineKey;
 
+    // configure the buffer layouts, bind groups and shader modules.
     fn specialize(
         &self,
         key: Self::Key,
@@ -290,9 +353,9 @@ impl SpecializedPipeline for ArrowInstancePipeline {
                 format: VertexFormat::Float32,
                 offset: 28,
                 shader_location: 2,
-            }
+            },
         ];
-        let vertex_array_stride = 3*4 + 4*4 + 4;
+        let vertex_array_stride = 3 * 4 + 4 * 4 + 4;
 
         let instance_vertex_attributes = vec![
             VertexAttribute {
@@ -307,34 +370,32 @@ impl SpecializedPipeline for ArrowInstancePipeline {
             },
             VertexAttribute {
                 format: VertexFormat::Float32x4,
-                offset: 16*2,
+                offset: 16 * 2,
                 shader_location: 5, // tail transform 2
             },
             VertexAttribute {
                 format: VertexFormat::Float32x4,
-                offset: 16*3,
+                offset: 16 * 3,
                 shader_location: 6, // tail transform 3
             },
-
-
             VertexAttribute {
                 format: VertexFormat::Float32x4,
-                offset: 16*4,
+                offset: 16 * 4,
                 shader_location: 7, // head transform row 0
             },
             VertexAttribute {
                 format: VertexFormat::Float32x4,
-                offset: 16*5,
+                offset: 16 * 5,
                 shader_location: 8, // head transform row 1
             },
             VertexAttribute {
                 format: VertexFormat::Float32x4,
-                offset: 16*6,
+                offset: 16 * 6,
                 shader_location: 9, // head transform row 2
             },
             VertexAttribute {
                 format: VertexFormat::Float32x4,
-                offset: 16*7,
+                offset: 16 * 7,
                 shader_location: 10, // head transform row 3
             },
         ];
@@ -367,9 +428,11 @@ impl SpecializedPipeline for ArrowInstancePipeline {
             }],
         };
 
+        // the uniform buffers taken from wrapped mesh2d_pipeline
         let bind_groups_layout = vec![
             self.mesh2d_pipeline.view_layout.clone(),
             self.mesh2d_pipeline.mesh_layout.clone(),
+            self.texture_layout.clone(),
         ];
 
         RenderPipelineDescriptor {
