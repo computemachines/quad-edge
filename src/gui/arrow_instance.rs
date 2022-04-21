@@ -306,9 +306,6 @@ fn prepare_instance_buffers(
     }
 }
 
-fn prepare_texture(mut commands: Commands, render_device: Res<RenderDevice>) {
-    // let bind_group = render_device.create_bind_group()
-}
 
 struct SetArrowTextureBindGroup;
 impl EntityRenderCommand for SetArrowTextureBindGroup {
@@ -334,7 +331,7 @@ impl EntityRenderCommand for SetArrowTextureBindGroup {
             .values
             .get(&Handle::weak(extracted_arrow_texture.image_handle_id))
             .unwrap();
-        // pass.set_bind_group(2, bind_group, &[]);
+        pass.set_bind_group(2, bind_group, &[]);
         RenderCommandResult::Success
     }
 }
@@ -529,7 +526,7 @@ impl SpecializedPipeline for ArrowInstancePipeline {
         let bind_groups_layout = vec![
             self.mesh2d_pipeline.view_layout.clone(),
             self.mesh2d_pipeline.mesh_layout.clone(),
-            // self.texture_layout.clone(),
+            self.texture_layout.clone(),
         ];
 
         RenderPipelineDescriptor {

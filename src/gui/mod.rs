@@ -76,7 +76,7 @@ pub fn setup_default_arrow_frame(
 ) {
     let mesh_handle = Mesh2dHandle(meshes.add(arrow_shapes::build_line_mesh()));
 
-    let texture_handle: Handle<Image> = asset_server.load("images/Solid_red.png");
+    let texture_handle: Handle<Image> = asset_server.load("images/arrow_atlas.png");
 
     commands
         .spawn_bundle(ArrowsBundle {
