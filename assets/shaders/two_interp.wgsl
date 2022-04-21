@@ -6,6 +6,11 @@ var<uniform> view: View;
 [[group(1), binding(0)]]
 var<uniform> mesh: Mesh2d;
 
+// [[group(2), binding(0)]]
+// var<uniform> texture: texture_2d<f32>;
+// [[group(2), binding(1)]]
+// var<uniform> texture_sampler: sampler;
+
 // The structure of the vertex buffer is as specified in `specialize()`
 struct Vertex {
     [[location(0)]] color: vec4<f32>;
@@ -59,6 +64,7 @@ fn vs_main(vertex: Vertex) -> VertexOutput {
     // var interp_model: mat4x4<f32> = vertex.weight * i_tail + (1.0 - vertex.weight) * i_head;
     out.clip_position = view.view_proj * mesh.model * interp_model * vec4<f32>(vertex.position, 1.0);
     out.color = vertex.color;
+    // out.uv = vec2<f32>(vertex.position.xy);
     return out;
 }
 
@@ -66,9 +72,12 @@ fn vs_main(vertex: Vertex) -> VertexOutput {
 struct FragmentInput {
     // The color is interpolated between vertices by default
     [[location(0)]] color: vec4<f32>;
+    // [[location(1)]] uv: vec2<f32>;
 };
 /// Entry point for the fragment shader
 [[stage(fragment)]]
 fn fs_main(in: FragmentInput) -> [[location(0)]] vec4<f32> {
-    return in.color;
+    // return textureSample(texture, texture_sampler, in.uv);
+    // return in.color;
+    return vec4<f32>(0.0, 1.0, 0.0, 1.0);
 }

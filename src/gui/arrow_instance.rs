@@ -1,4 +1,5 @@
 use bevy::{
+    asset::HandleId,
     core::{FloatOrd, Pod, Zeroable},
     core_pipeline::Transparent2d,
     ecs::system::lifetimeless::{Read, SQuery, SRes},
@@ -13,13 +14,14 @@ use bevy::{
             SetItemPipeline,
         },
         render_resource::{
-            BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType,
-            BlendState, Buffer, BufferBindingType, BufferInitDescriptor, BufferUsages,
-            ColorTargetState, ColorWrites, FragmentState, FrontFace, MultisampleState, PolygonMode,
-            PrimitiveState, PrimitiveTopology, RenderPipelineCache, RenderPipelineDescriptor,
+            BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
+            BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendState, Buffer,
+            BufferBindingType, BufferInitDescriptor, BufferUsages, ColorTargetState, ColorWrites,
+            FragmentState, FrontFace, MultisampleState, PolygonMode, PrimitiveState,
+            PrimitiveTopology, RenderPipelineCache, RenderPipelineDescriptor, SamplerBindingType,
             ShaderStages, SpecializedPipeline, SpecializedPipelines, TextureFormat,
             TextureSampleType, TextureViewDimension, VertexAttribute, VertexBufferLayout,
-            VertexFormat, VertexState, VertexStepMode, SamplerBindingType,
+            VertexFormat, VertexState, VertexStepMode, BindingResource,
         },
         renderer::RenderDevice,
         texture::BevyDefault,
@@ -52,10 +54,12 @@ impl Plugin for ArrowPlugin {
             SetItemPipeline,
             SetMesh2dViewBindGroup<0>,
             SetMesh2dBindGroup<1>,
+            SetArrowTextureBindGroup,
             DrawArrowInstanced,
         )>();
 
         render_app
+            .init_resource::<MyImageBindGroups>()
             .init_resource::<ArrowInstancePipeline>()
             .init_resource::<SpecializedPipelines<ArrowInstancePipeline>>()
             .add_system_to_stage(RenderStage::Extract, extract_arrow_instances)
@@ -77,6 +81,7 @@ pub struct ArrowFrame;
 #[derive(Bundle, Default)]
 pub struct ArrowsBundle {
     pub mesh: Mesh2dHandle,
+    pub texture: Handle<Image>,
 
     pub local: Transform,
     pub global: GlobalTransform,
@@ -87,7 +92,7 @@ pub struct ArrowsBundle {
     pub arrow_frame_marker: ArrowFrame,
 }
 
-// A Render `World` component. 
+// A Render `World` component.
 // First component is used to build the instance buffers in the `RenderStage::Prepare` phase.
 // Second component holds the extracted texture.
 #[derive(Component, Default, Debug, Clone)]
@@ -114,11 +119,17 @@ pub struct ExtractedArrowInstance {
 #[derive(Component)]
 pub struct Arrow(pub Transform, pub Transform, pub Entity);
 
+#[derive(Component, Clone, Copy)]
+struct ExtractedArrowTexture {
+    image_handle_id: HandleId, // copied from bevy_sprite `ExtractedSprite`
+}
+
 // Extract user `Arrow` components into rendering `World`.
 // Each 'arrow type' is represented by a different `ArrowsFrame` entity.
 fn extract_arrow_instances(
     mut commands: Commands,
     arrows: Query<&Arrow>,
+    image_handles: Query<&Handle<Image>>,
     global_transforms: Query<&GlobalTransform>,
 ) {
     let mut arrows_by_type = HashMap::default();
@@ -136,30 +147,51 @@ fn extract_arrow_instances(
 
     // insert the collected arrow instances onto the ArrowFrame and mark as ready to be queued.
     for (arrow_type, arrows) in arrows_by_type.drain() {
-        commands
-            .get_or_spawn(arrow_type)
-            .insert(ExtractedArrowInstances(arrows))
-            .insert(QueueArrowInstanced);
+        if let Ok(image_handle) = image_handles.get(arrow_type) {
+            info!("inserting extracted arrow into render world");
+            commands
+                .get_or_spawn(arrow_type)
+                .insert(ExtractedArrowInstances(arrows))
+                .insert(ExtractedArrowTexture {
+                    image_handle_id: image_handle.id,
+                })
+                .insert(QueueArrowInstanced);
+        } else {
+            warn!(
+                "arrow_type: {:?}, did not have an Handle<Image>",
+                arrow_type
+            );
+        }
     }
 }
 
 #[derive(Component)]
 struct QueueArrowInstanced;
 
+#[derive(Default)]
+pub struct MyImageBindGroups {
+    pub values: HashMap<Handle<Image>, BindGroup>,
+}
+
 // Queue up the custom EntityRenderCommand useing the specialized pipeline.
 fn queue_arrow_instances(
+    mut render_device: ResMut<RenderDevice>,
     transparent_draw_functions: Res<DrawFunctions<Transparent2d>>,
     arrow_instance_pipeline: Res<ArrowInstancePipeline>,
     mut pipelines: ResMut<SpecializedPipelines<ArrowInstancePipeline>>,
     mut pipeline_cache: ResMut<RenderPipelineCache>,
     msaa: Res<Msaa>,
 
-    // I'm not sure where this Mesh2dUniform comes from?
-    arrow_instances: Query<(&Mesh2dHandle, &Mesh2dUniform), With<QueueArrowInstanced>>,
+    arrow_instances: Query<
+        (&Mesh2dHandle, &Mesh2dUniform, &ExtractedArrowTexture),
+        With<QueueArrowInstanced>,
+    >,
+    gpu_images: Res<RenderAssets<Image>>,
+    mut image_bind_groups: ResMut<MyImageBindGroups>,
+
     render_meshes: Res<RenderAssets<Mesh>>,
     mut views: Query<(&VisibleEntities, &mut RenderPhase<Transparent2d>)>,
 ) {
-    info!("queue");
     if arrow_instances.is_empty() {
         return;
     }
@@ -171,6 +203,7 @@ fn queue_arrow_instances(
                 SetItemPipeline,
                 SetMesh2dViewBindGroup<0>,
                 SetMesh2dBindGroup<1>,
+                SetArrowTextureBindGroup,
                 DrawArrowInstanced,
             )>()
             .unwrap();
@@ -181,8 +214,37 @@ fn queue_arrow_instances(
         for visible_entity in &visible_entities.entities {
             info!("queue visible entity");
 
-            if let Ok((mesh2d_handle, mesh2d_uniform)) = arrow_instances.get(*visible_entity) {
+            if let Ok((mesh2d_handle, mesh2d_uniform, extracted_arrow_texture)) =
+                arrow_instances.get(*visible_entity)
+            {
                 info!("queue visible arrow_instance: {:?}", visible_entity);
+
+                if let Some(gpu_image) =
+                    gpu_images.get(&Handle::weak(extracted_arrow_texture.image_handle_id))
+                {
+                    image_bind_groups
+                        .values
+                        .entry(Handle::weak(extracted_arrow_texture.image_handle_id))
+                        .or_insert_with(|| {
+                            render_device.create_bind_group(&BindGroupDescriptor {
+                                label: Some("arrow texture bind group"),
+                                layout: &arrow_instance_pipeline.texture_layout,
+                                entries: &[
+                                    BindGroupEntry {
+                                        binding: 0,
+                                        resource: BindingResource::TextureView(&gpu_image.texture_view),
+                                    },
+                                    BindGroupEntry {
+                                        binding: 1,
+                                        resource: BindingResource::Sampler(&gpu_image.sampler),
+                                    },
+                                ],
+                            })
+                        });
+                    info!("gpu image texture is loaded");
+                } else {
+                    warn!("gpu image texture not loaded");
+                }
 
                 // Get our specialized pipeline
                 let mut mesh2d_key = mesh_key;
@@ -245,7 +307,36 @@ fn prepare_instance_buffers(
 }
 
 fn prepare_texture(mut commands: Commands, render_device: Res<RenderDevice>) {
-    let bind_group = render_device.create_bind_group()
+    // let bind_group = render_device.create_bind_group()
+}
+
+struct SetArrowTextureBindGroup;
+impl EntityRenderCommand for SetArrowTextureBindGroup {
+    type Param = (SRes<MyImageBindGroups>, SQuery<Read<ExtractedArrowTexture>>);
+
+    fn render<'w>(
+        view: Entity,
+        item: Entity,
+        (image_bind_groups, extracted_arrow_texture_query): bevy::ecs::system::SystemParamItem<
+            'w,
+            '_,
+            Self::Param,
+        >,
+        pass: &mut bevy::render::render_phase::TrackedRenderPass<'w>,
+    ) -> RenderCommandResult {
+        let extracted_arrow_texture = extracted_arrow_texture_query.get(item).unwrap();
+        info!(
+            "SetArrowTextureBindGroup.render( {:?} )",
+            extracted_arrow_texture.image_handle_id
+        );
+        let bind_group = image_bind_groups
+            .into_inner()
+            .values
+            .get(&Handle::weak(extracted_arrow_texture.image_handle_id))
+            .unwrap();
+        // pass.set_bind_group(2, bind_group, &[]);
+        RenderCommandResult::Success
+    }
 }
 
 // The `EntityRenderCommand` that performs the actual draw calls.
@@ -438,7 +529,7 @@ impl SpecializedPipeline for ArrowInstancePipeline {
         let bind_groups_layout = vec![
             self.mesh2d_pipeline.view_layout.clone(),
             self.mesh2d_pipeline.mesh_layout.clone(),
-            self.texture_layout.clone(),
+            // self.texture_layout.clone(),
         ];
 
         RenderPipelineDescriptor {
