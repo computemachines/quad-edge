@@ -87,20 +87,22 @@ pub struct ArrowsBundle {
     pub arrow_frame_marker: ArrowFrame,
 }
 
-// A Render `World` component. Used to build the instance buffers in the `RenderStage::Prepare` phase.
+// A Render `World` component. 
+// First component is used to build the instance buffers in the `RenderStage::Prepare` phase.
+// Second component holds the extracted texture.
 #[derive(Component, Default, Debug, Clone)]
-pub struct ArrowInstances(pub Vec<ArrowInstance>);
+pub struct ExtractedArrowInstances(pub Vec<ExtractedArrowInstance>);
 
-// Array of ArrowInstances are passed to GPU as an Instance Buffer
+// Array of `ExtractedArrowInstances` are passed to GPU as an Instance Buffer
 // TODO: reduce the size of this. Instances do not need the full transform matrix.
 #[derive(Clone, Copy, Pod, Zeroable, Debug)]
 #[repr(C)]
-pub struct ArrowInstance {
+pub struct ExtractedArrowInstance {
     pub tail_global_transform: Mat4,
     pub head_global_transform: Mat4,
 }
 
-// Represents an arrow with tail transform, head transform, and `ArrowsBundle` entity.
+// Represents an arrow with tail transform, head transform, and `ArrowsFrame` entity.
 // Example usage:
 // fn add_arrow(mut commands: Commands, arrow_frame: Query<Entity, With<ArrowFrame>>) {
 //     commands.spawn().insert(Arrow(
@@ -113,7 +115,7 @@ pub struct ArrowInstance {
 pub struct Arrow(pub Transform, pub Transform, pub Entity);
 
 // Extract user `Arrow` components into rendering `World`.
-// Each 'arrow type' is represented by a different `ArrowsBundle`.
+// Each 'arrow type' is represented by a different `ArrowsFrame` entity.
 fn extract_arrow_instances(
     mut commands: Commands,
     arrows: Query<&Arrow>,
@@ -125,7 +127,7 @@ fn extract_arrow_instances(
         let mut arrows = arrows_by_type.entry(*entity).or_insert(Vec::new());
 
         if let Ok(transform) = global_transforms.get(*entity) {
-            arrows.push(ArrowInstance {
+            arrows.push(ExtractedArrowInstance {
                 head_global_transform: transform.mul_transform(*head).compute_matrix(),
                 tail_global_transform: transform.mul_transform(*tail).compute_matrix(),
             });
@@ -136,7 +138,7 @@ fn extract_arrow_instances(
     for (arrow_type, arrows) in arrows_by_type.drain() {
         commands
             .get_or_spawn(arrow_type)
-            .insert(ArrowInstances(arrows))
+            .insert(ExtractedArrowInstances(arrows))
             .insert(QueueArrowInstanced);
     }
 }
@@ -223,7 +225,7 @@ struct InstanceBuffer {
 // Bevy calls this before the EntityRenderCommands, `render`.
 fn prepare_instance_buffers(
     mut commands: Commands,
-    query: Query<(Entity, &ArrowInstances)>,
+    query: Query<(Entity, &ExtractedArrowInstances)>,
     render_device: Res<RenderDevice>,
 ) {
     // info!("Running prepare instance buffer system");
@@ -240,6 +242,10 @@ fn prepare_instance_buffers(
         });
         // info!("Added instance buffer to entity: {:?}", entity);
     }
+}
+
+fn prepare_texture(mut commands: Commands, render_device: Res<RenderDevice>) {
+    let bind_group = render_device.create_bind_group()
 }
 
 // The `EntityRenderCommand` that performs the actual draw calls.
@@ -411,7 +417,7 @@ impl SpecializedPipeline for ArrowInstancePipeline {
                     attributes: vertex_attributes,
                 },
                 VertexBufferLayout {
-                    array_stride: std::mem::size_of::<ArrowInstance>() as u64,
+                    array_stride: std::mem::size_of::<ExtractedArrowInstance>() as u64,
                     step_mode: VertexStepMode::Instance,
                     attributes: instance_vertex_attributes,
                 },
