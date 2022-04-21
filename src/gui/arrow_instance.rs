@@ -15,13 +15,13 @@ use bevy::{
         },
         render_resource::{
             BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
-            BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendState, Buffer,
-            BufferBindingType, BufferInitDescriptor, BufferUsages, ColorTargetState, ColorWrites,
-            FragmentState, FrontFace, MultisampleState, PolygonMode, PrimitiveState,
-            PrimitiveTopology, RenderPipelineCache, RenderPipelineDescriptor, SamplerBindingType,
-            ShaderStages, SpecializedPipeline, SpecializedPipelines, TextureFormat,
-            TextureSampleType, TextureViewDimension, VertexAttribute, VertexBufferLayout,
-            VertexFormat, VertexState, VertexStepMode, BindingResource,
+            BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType,
+            BlendState, Buffer, BufferBindingType, BufferInitDescriptor, BufferUsages,
+            ColorTargetState, ColorWrites, FragmentState, FrontFace, MultisampleState, PolygonMode,
+            PrimitiveState, PrimitiveTopology, RenderPipelineCache, RenderPipelineDescriptor,
+            SamplerBindingType, ShaderStages, SpecializedPipeline, SpecializedPipelines,
+            TextureFormat, TextureSampleType, TextureViewDimension, VertexAttribute,
+            VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
         },
         renderer::RenderDevice,
         texture::BevyDefault,
@@ -232,7 +232,9 @@ fn queue_arrow_instances(
                                 entries: &[
                                     BindGroupEntry {
                                         binding: 0,
-                                        resource: BindingResource::TextureView(&gpu_image.texture_view),
+                                        resource: BindingResource::TextureView(
+                                            &gpu_image.texture_view,
+                                        ),
                                     },
                                     BindGroupEntry {
                                         binding: 1,
@@ -305,7 +307,6 @@ fn prepare_instance_buffers(
         // info!("Added instance buffer to entity: {:?}", entity);
     }
 }
-
 
 struct SetArrowTextureBindGroup;
 impl EntityRenderCommand for SetArrowTextureBindGroup {
@@ -448,49 +449,54 @@ impl SpecializedPipeline for ArrowInstancePipeline {
                 offset: 28,
                 shader_location: 2,
             },
+            VertexAttribute {
+                format: VertexFormat::Float32x2,
+                offset: 32,
+                shader_location: 3,
+            },
         ];
-        let vertex_array_stride = 3 * 4 + 4 * 4 + 4;
+        let vertex_array_stride = 4 * 4 + 4 * 3 + 4 * 1 + 4 * 2;
 
         let instance_vertex_attributes = vec![
             VertexAttribute {
                 format: VertexFormat::Float32x4,
                 offset: 0,
-                shader_location: 3, // tail transform row 0
+                shader_location: 4, // tail transform row 0
             },
             VertexAttribute {
                 format: VertexFormat::Float32x4,
                 offset: 16,
-                shader_location: 4, // tail transform 1
+                shader_location: 5, // tail transform 1
             },
             VertexAttribute {
                 format: VertexFormat::Float32x4,
                 offset: 16 * 2,
-                shader_location: 5, // tail transform 2
+                shader_location: 6, // tail transform 2
             },
             VertexAttribute {
                 format: VertexFormat::Float32x4,
                 offset: 16 * 3,
-                shader_location: 6, // tail transform 3
+                shader_location: 7, // tail transform 3
             },
             VertexAttribute {
                 format: VertexFormat::Float32x4,
                 offset: 16 * 4,
-                shader_location: 7, // head transform row 0
+                shader_location: 8, // head transform row 0
             },
             VertexAttribute {
                 format: VertexFormat::Float32x4,
                 offset: 16 * 5,
-                shader_location: 8, // head transform row 1
+                shader_location: 9, // head transform row 1
             },
             VertexAttribute {
                 format: VertexFormat::Float32x4,
                 offset: 16 * 6,
-                shader_location: 9, // head transform row 2
+                shader_location: 10, // head transform row 2
             },
             VertexAttribute {
                 format: VertexFormat::Float32x4,
                 offset: 16 * 7,
-                shader_location: 10, // head transform row 3
+                shader_location: 11, // head transform row 3
             },
         ];
 

@@ -16,15 +16,16 @@ struct Vertex {
     [[location(0)]] color: vec4<f32>;
     [[location(1)]] position: vec3<f32>;
     [[location(2)]] weight: f32;
-    [[location(3)]] i_tail_0: vec4<f32>;
-    [[location(4)]] i_tail_1: vec4<f32>;
-    [[location(5)]] i_tail_2: vec4<f32>;
-    [[location(6)]] i_tail_3: vec4<f32>;
+    [[location(3)]] uv: vec2<f32>;
+    [[location(4)]] i_tail_0: vec4<f32>;
+    [[location(5)]] i_tail_1: vec4<f32>;
+    [[location(6)]] i_tail_2: vec4<f32>;
+    [[location(7)]] i_tail_3: vec4<f32>;
 
-    [[location(7)]] i_head_0: vec4<f32>;
-    [[location(8)]] i_head_1: vec4<f32>;
-    [[location(9)]] i_head_2: vec4<f32>;
-    [[location(10)]] i_head_3: vec4<f32>;
+    [[location(8)]] i_head_0: vec4<f32>;
+    [[location(9)]] i_head_1: vec4<f32>;
+    [[location(10)]] i_head_2: vec4<f32>;
+    [[location(11)]] i_head_3: vec4<f32>;
 };
 
 struct VertexOutput {
@@ -65,7 +66,7 @@ fn vs_main(vertex: Vertex) -> VertexOutput {
     // var interp_model: mat4x4<f32> = vertex.weight * i_tail + (1.0 - vertex.weight) * i_head;
     out.clip_position = view.view_proj * mesh.model * interp_model * vec4<f32>(vertex.position, 1.0);
     out.color = vertex.color;
-    out.uv = vec2<f32>(vertex.position.xy);
+    out.uv = vertex.uv;
     return out;
 }
 

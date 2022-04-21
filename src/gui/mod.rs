@@ -61,7 +61,7 @@ fn clicked(
     mouse_button_input: Res<Input<MouseButton>>,
     entity: Query<Entity, With<ArrowFrame>>,
 ) {
-    let transform = Transform::from_translation((mouse_position.0, 0.0).into());
+    let transform = Transform::from_translation((mouse_position.0, 0.0).into()).with_scale(Vec3::splat(10.0));
     if mouse_button_input.just_pressed(MouseButton::Left) {
         commands
             .spawn()
