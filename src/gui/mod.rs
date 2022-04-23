@@ -1,222 +1,126 @@
-mod line_mesh;
-mod shapes;
+mod arrow_instance;
+mod arrow_shapes;
 
-use std::time::Duration;
-
-use bevy::app::{AppExit, ScheduleRunnerSettings};
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
-use bevy::input::mouse::{MouseButtonInput, MouseMotion};
 use bevy::render::render_resource::PrimitiveTopology;
-use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle, SpecializedMaterial2d};
-use bevy::utils::tracing::span::Entered;
+use bevy::sprite::Mesh2dHandle;
 use bevy::{prelude::*, render::mesh::Indices};
 
 // use bevy_egui::{egui, EguiContext, EguiPlugin};
 use quad_edge::delaunay_voronoi::DelaunayMesh;
 
-#[derive(Default, Debug)]
-struct MousePosition(Vec3);
+use self::arrow_instance::{Arrow, ArrowFrame, ArrowsBundle, ATTRIBUTE_WEIGHT};
 
-#[derive(Debug, StageLabel, Hash, PartialEq, Eq, Clone)]
-struct ArrowUpdateStage;
+#[derive(Component, Default)]
+struct MousePosition(Vec2);
 
-#[derive(Debug, Default)]
-struct DebugTimer(Timer);
-
-pub fn explore_mesh(mesh: DelaunayMesh) {
+pub fn explore_mesh(_mesh: DelaunayMesh) {
     App::new()
-        .insert_resource(ScheduleRunnerSettings::run_loop(Duration::from_secs_f32(
-            1.0,
-        )))
         .add_plugins(DefaultPlugins)
-        // .add_plugin(line_mesh::LineMeshPlugin)
-        // .add_plugin(FrameTimeDiagnosticsPlugin::default())
+        .add_plugin(arrow_instance::ArrowPlugin)
+        .add_plugin(FrameTimeDiagnosticsPlugin::default())
         // .add_plugin(EguiPlugin)
         // Systems that create Egui widgets should be run during the `CoreStage::Update` stage,
         // or after the `EguiSystem::BeginFrame` system (which belongs to the `CoreStage::PreUpdate` stage).
         // .add_system(ui_example)
-        .insert_resource(Msaa { samples: 1 })
+        // .insert_resource(Msaa { samples: 1 })
         .init_resource::<MousePosition>()
-        .insert_resource(DebugTimer(Timer::from_seconds(1.0, true)))
-        .add_stage_before(
-            CoreStage::PostUpdate,
-            ArrowUpdateStage,
-            SystemStage::parallel(),
-        )
-        .add_startup_system(setup_system)
-        .add_startup_system_to_stage(StartupStage::PreStartup, arrow_setup)
-        // .add_system(add_arrow_children)
-        .add_system(update_mouse_position)
-        .add_system_to_stage(ArrowUpdateStage, add_arrow_children)
-        .add_system(exit_on_escape)
+        .add_startup_system_to_stage(StartupStage::PreStartup, setup_default_arrow_frame.label("default arrow frame"))
+        .add_startup_system(setup_system.after("default arrow frame"))
+        .add_system(animate_arrows)
+        .add_system_to_stage(CoreStage::PreUpdate, update_mouse_position)
         .add_system(clicked)
-        .add_system(debug)
         .run();
 }
 
+fn cursor_position_to_model_2d(window: &Window, position: Vec2) -> Vec2 {
+    Vec2::new(
+        position.x - 0.5 * window.width(),
+        position.y - 0.5 * window.height(),
+    )
+}
+
 fn update_mouse_position(
-    window: Res<Windows>,
+    windows: Res<Windows>,
     mut mouse_position: ResMut<MousePosition>,
     mut cursor_moved_events: EventReader<CursorMoved>,
+    mut arrows: Query<&mut Arrow>,
 ) {
-    cursor_moved_events.iter().last().map(|event| {
-        mouse_position.0 = Vec3::new(
-            event.position.x - window.primary().width() / 2.0,
-            event.position.y - window.primary().height() / 2.0,
-            0.0,
-        )
-    });
-}
-
-struct ArrowConfig<M: SpecializedMaterial2d> {
-    start_cap: MaterialMesh2dBundle<M>,
-    end_cap: MaterialMesh2dBundle<M>,
-    line: MaterialMesh2dBundle<M>,
-}
-
-#[derive(Bundle)]
-pub struct ArrowBundle {
-    pub end: Arrow,
-    pub transform: Transform,
-    pub global_transform: GlobalTransform,
-}
-
-#[derive(Component)]
-pub struct Arrow(Vec3);
-
-impl ArrowBundle {
-    fn new(start: Vec3, end: Vec3) -> Self {
-        Self {
-            end: Arrow(end - start),
-            transform: Transform::from_translation(start),
-            global_transform: GlobalTransform::default(),
+    if let Some(cursor_moved) = cursor_moved_events.iter().last().take() {
+        mouse_position.0 =
+            cursor_position_to_model_2d(windows.get_primary().unwrap(), cursor_moved.position);
+        for mut arrow in arrows.iter_mut() {
+            arrow.1 = (mouse_position.0, 0.0).into();
         }
     }
-}
-
-fn arrow_setup(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-) {
-    let circle: Mesh2dHandle = meshes.add(Mesh::from(shapes::Circle::new(10.0, 16))).into();
-    let arrow = meshes.add(Mesh::from(shapes::Circle::new(10.0, 3))).into();
-    let line = meshes
-        .add(Mesh::from(shape::Quad::new(Vec2::new(1.0, 1.0))))
-        .into();
-
-    let solid_black = materials.add(ColorMaterial::from(Color::BLACK));
-
-    let arrow_config = ArrowConfig {
-        end_cap: MaterialMesh2dBundle {
-            mesh: arrow,
-            material: solid_black.clone(),
-            ..Default::default()
-        },
-        start_cap: MaterialMesh2dBundle {
-            mesh: circle.clone(),
-            material: solid_black.clone(),
-            ..Default::default()
-        },
-        line: MaterialMesh2dBundle {
-            mesh: line,
-            material: solid_black.clone(),
-            ..Default::default()
-        },
-    };
-    commands.insert_resource(arrow_config);
 }
 
 fn clicked(
     mut commands: Commands,
-    mouse_button_input: Res<Input<MouseButton>>,
-    arrow_config: Res<ArrowConfig<ColorMaterial>>,
     mouse_position: Res<MousePosition>,
+    mouse_button_input: Res<Input<MouseButton>>,
+    entity: Query<Entity, With<ArrowFrame>>,
 ) {
     if mouse_button_input.just_pressed(MouseButton::Left) {
-        commands.spawn_bundle(ArrowBundle::new(
-            Vec3::new(30.0, 25.0, 0.0),
-            Vec3::new(40.0, 15.0, 0.0),
-        ));
         commands
-            .spawn_bundle(MaterialMesh2dBundle {
-                mesh: arrow_config.end_cap.mesh.clone(),
-                material: arrow_config.end_cap.material.clone(),
-                transform: Transform::from_translation(Vec3::new(-50.0, -50.0, 0.0)),
-                global_transform: GlobalTransform::from_translation(Vec3::default()),
-                ..Default::default()
-            })
-            .with_children(|parent| {
-                parent.spawn_bundle(MaterialMesh2dBundle {
-                    mesh: arrow_config.end_cap.mesh.clone(),
-                    material: arrow_config.end_cap.material.clone(),
-                    global_transform: GlobalTransform::from_translation(Vec3::default()),
-                    ..Default::default()
-                });
-            });
+            .spawn()
+            .insert(Arrow((mouse_position.0, 0.0).into(), (mouse_position.0, 0.0).into(), entity.single()));
     }
 }
 
-fn add_arrow_children(
+pub fn setup_default_arrow_frame(
     mut commands: Commands,
-    arrow_config: Res<ArrowConfig<ColorMaterial>>,
-    new_arrows: Query<(Entity, &Arrow), Changed<Arrow>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    asset_server: Res<AssetServer>,
 ) {
-    for (entity, new_arrow) in new_arrows.iter() {
-        info!("New arrow children");
-        let start = commands
-            .spawn_bundle(MaterialMesh2dBundle {
-                mesh: arrow_config.start_cap.mesh.clone(),
-                material: arrow_config.start_cap.material.clone(),
-                ..Default::default()
-            })
-            .insert(Parent(entity))
-            .id();
-        info!("start cap: {:?}", start);
-        let end = commands
-            .spawn_bundle(MaterialMesh2dBundle {
-                mesh: arrow_config.end_cap.mesh.clone(),
-                material: arrow_config.end_cap.material.clone(),
-                transform: Transform::from_translation(new_arrow.0),
-                ..Default::default()
-            })
-            .insert(Parent(entity))
-            .id();
-        info!("end cap: {:?}", end);
-    }
-}
+    let mesh_handle = Mesh2dHandle(meshes.add(arrow_shapes::build_arrow_strip_mesh()));
 
-fn debug(
-    time: Res<Time>,
-    mut timer: ResMut<DebugTimer>,
-    query_no_parent: Query<(Entity, &Transform, &GlobalTransform), Without<Parent>>,
-    query_parents: Query<(Entity, &Transform, &GlobalTransform, &Parent)>,
-) {
-    if timer.0.tick(time.delta()).just_finished() {
-        info!("roots -----------");
-        for (entity, local, global) in query_no_parent.iter() {
-            info!("{:?}.local = {}", entity, local.translation);
-            info!("{:?}.global = {}", entity, global.translation);
-        }
-        info!("children ---------");
-        for (entity, local, global, parent) in query_parents.iter() {
-            info!("{:?}.parent = {:?}", entity, parent);
-            info!("{:?}.local = {}", entity, local.translation);
-            info!("{:?}.global = {}", entity, global.translation);
-        }
-    }
+    let texture_handle: Handle<Image> = asset_server.load("images/arrow_atlas.png");
+
+    commands
+        .spawn_bundle(ArrowsBundle {
+            mesh: mesh_handle,
+            arrow_frame_marker: ArrowFrame::default(),
+            texture: texture_handle,
+            ..Default::default()
+        });
 }
 
 fn setup_system(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    asset_server: Res<AssetServer>,
+    entity: Query<Entity, With<ArrowFrame>>,
 ) {
+    let entity = entity.single();
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+
+    // commands.spawn().insert(Arrow(
+    //     Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+    //     Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
+    //     entity,
+    // ));
+    // commands
+    //     .spawn()
+    //     .insert(Arrow(
+    //         Transform::from_translation(Vec3::new(-100.0, 250.0, 0.0))
+    //             .with_scale(Vec3::new(10.0, 10.0, 10.0)),
+    //         Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
+    //         entity,
+    //     ))
+    //     .insert(Animated);
+    // commands.spawn().insert(Arrow(
+    //     Transform::from_translation(Vec3::new(70.0, 70.0, 0.0)),
+    //     Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
+    //     entity,
+    // ));
 }
 
-fn exit_on_escape(keyboard_input: Res<Input<KeyCode>>, mut app_exit_events: EventWriter<AppExit>) {
-    if keyboard_input.just_pressed(KeyCode::Escape) {
-        app_exit_events.send(AppExit);
+#[derive(Component)]
+struct Animated;
+
+fn animate_arrows(time: Res<Time>, mut arrows: Query<&mut Arrow, With<Animated>>) {
+    for mut arrow in arrows.iter_mut() {
+        arrow.0.y = 250.0 - 10.0 * time.seconds_since_startup() as f32;
     }
 }
