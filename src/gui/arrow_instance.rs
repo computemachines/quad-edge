@@ -448,72 +448,73 @@ impl SpecializedPipeline for ArrowInstancePipeline {
         key: Self::Key,
     ) -> bevy::render::render_resource::RenderPipelineDescriptor {
         let vertex_attributes = vec![
-            VertexAttribute {
-                // color
-                format: VertexFormat::Float32x4,
-                offset: 0,
-                shader_location: 0,
-            },
+            // VertexAttribute {
+            //     // color
+            //     format: VertexFormat::Float32x4,
+            //     offset: 0,
+            //     shader_location: 0,
+            // },
             VertexAttribute {
                 //position
                 format: VertexFormat::Float32x3,
-                offset: 16, // size of color attribute. bevy stores MESH::*_ATTRIBUTES in alphabetical order.
-                shader_location: 1, // location of the position attribute
+                offset: 0, // size of color attribute. bevy stores MESH::*_ATTRIBUTES in alphabetical order.
+                shader_location: 0, // location of the position attribute
+            },
+            VertexAttribute {
+                // uv
+                format: VertexFormat::Float32x2,
+                offset: 12,
+                shader_location: 1,
             },
             VertexAttribute {
                 // weight
                 format: VertexFormat::Float32,
-                offset: 28,
+                offset: 20,
                 shader_location: 2,
             },
-            VertexAttribute {
-                format: VertexFormat::Float32x2,
-                offset: 32,
-                shader_location: 3,
-            },
         ];
-        let vertex_array_stride = 4 * 4 + 4 * 3 + 4 * 1 + 4 * 2;
+        let vertex_array_stride = 4 *3 + 4 * 2 + 4 * 1;
 
         let instance_vertex_attributes = vec![
             VertexAttribute {
                 format: VertexFormat::Float32x4,
                 offset: 0,
-                shader_location: 4, // tail transform row 0
+                shader_location: 3, // tail transform row 0
             },
             VertexAttribute {
                 format: VertexFormat::Float32x4,
                 offset: 16,
-                shader_location: 5, // tail transform 1
+                shader_location: 4, // tail transform 1
             },
             VertexAttribute {
                 format: VertexFormat::Float32x4,
                 offset: 16 * 2,
-                shader_location: 6, // tail transform 2
+                shader_location: 5, // tail transform 2
             },
             VertexAttribute {
                 format: VertexFormat::Float32x4,
                 offset: 16 * 3,
-                shader_location: 7, // tail transform 3
+                shader_location: 6, // tail transform 3
             },
             VertexAttribute {
                 format: VertexFormat::Float32x4,
                 offset: 16 * 4,
-                shader_location: 8, // head transform row 0
+                shader_location: 7, // head transform row 0
             },
             VertexAttribute {
                 format: VertexFormat::Float32x4,
                 offset: 16 * 5,
-                shader_location: 9, // head transform row 1
+                shader_location: 8, // head transform row 1
             },
             VertexAttribute {
                 format: VertexFormat::Float32x4,
                 offset: 16 * 6,
-                shader_location: 10, // head transform row 2
+                shader_location: 9, // head transform row 2
             },
             VertexAttribute {
                 format: VertexFormat::Float32x4,
                 offset: 16 * 7,
-                shader_location: 11, // head transform row 3
+                shader_location: 10, // head transform row 3
             },
         ];
 

@@ -2,9 +2,9 @@
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
 
 <svg
-   width="16"
-   height="160"
-   viewBox="0 0 4.2333333 42.333335"
+   width="160"
+   height="16"
+   viewBox="0 0 42.333333 4.2333335"
    version="1.1"
    id="svg5"
    inkscape:version="1.1.2 (08b2f3d93c, 2022-04-05)"
@@ -30,9 +30,9 @@
      width="128px"
      showguides="true"
      inkscape:guide-bbox="true"
-     inkscape:zoom="4"
-     inkscape:cx="35"
-     inkscape:cy="86.625"
+     inkscape:zoom="32"
+     inkscape:cx="4.9375"
+     inkscape:cy="10.234375"
      inkscape:window-width="1848"
      inkscape:window-height="1016"
      inkscape:window-x="72"
@@ -43,7 +43,7 @@
        type="xygrid"
        id="grid9"
        empspacing="4"
-       enabled="false" />
+       enabled="true" />
     <sodipodi:guide
        position="4.2333334,0"
        orientation="-1,0"
@@ -67,7 +67,7 @@
        transform="rotate(90,1.852083,2.3812503)">
       <g
          id="g937"
-         transform="matrix(-1,0,0,1,41.804166,0)"
+         transform="matrix(0,-1,-1,0,3.7041659,4.2333335)"
          inkscape:export-filename="/home/tparker/projects/quad-edge/assets/images/arrow_atlas.png"
          inkscape:export-xdpi="147.97452"
          inkscape:export-ydpi="147.97452">

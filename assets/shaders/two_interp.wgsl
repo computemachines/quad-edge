@@ -13,27 +13,24 @@ var d_sampler: sampler;
 
 // The structure of the vertex buffer is as specified in `specialize()`
 struct Vertex {
-    [[location(0)]] color: vec4<f32>;
-    [[location(1)]] position: vec3<f32>;
+    [[location(0)]] position: vec3<f32>;
+    [[location(1)]] uv: vec2<f32>;
     [[location(2)]] weight: f32;
-    [[location(3)]] uv: vec2<f32>;
-    [[location(4)]] i_tail_0: vec4<f32>;
-    [[location(5)]] i_tail_1: vec4<f32>;
-    [[location(6)]] i_tail_2: vec4<f32>;
-    [[location(7)]] i_tail_3: vec4<f32>;
+    [[location(3)]] i_tail_0: vec4<f32>;
+    [[location(4)]] i_tail_1: vec4<f32>;
+    [[location(5)]] i_tail_2: vec4<f32>;
+    [[location(6)]] i_tail_3: vec4<f32>;
 
-    [[location(8)]] i_head_0: vec4<f32>;
-    [[location(9)]] i_head_1: vec4<f32>;
-    [[location(10)]] i_head_2: vec4<f32>;
-    [[location(11)]] i_head_3: vec4<f32>;
+    [[location(7)]] i_head_0: vec4<f32>;
+    [[location(8)]] i_head_1: vec4<f32>;
+    [[location(9)]] i_head_2: vec4<f32>;
+    [[location(10)]] i_head_3: vec4<f32>;
 };
 
 struct VertexOutput {
     // The vertex shader must set the on-screen position of the vertex
     [[builtin(position)]] clip_position: vec4<f32>;
-    // We pass the vertex color to the framgent shader in location 0
-    [[location(0)]] color: vec4<f32>;
-    [[location(1)]] uv: vec2<f32>;
+    [[location(0)]] uv: vec2<f32>;
 };
 
 
@@ -65,7 +62,6 @@ fn vs_main(vertex: Vertex) -> VertexOutput {
 
     // var interp_model: mat4x4<f32> = vertex.weight * i_tail + (1.0 - vertex.weight) * i_head;
     out.clip_position = view.view_proj * mesh.model * interp_model * vec4<f32>(vertex.position, 1.0);
-    out.color = vertex.color;
     out.uv = vertex.uv;
     return out;
 }
@@ -73,13 +69,10 @@ fn vs_main(vertex: Vertex) -> VertexOutput {
 // The input of the fragment shader must correspond to the output of the vertex shader for all `location`s
 struct FragmentInput {
     // The color is interpolated between vertices by default
-    [[location(0)]] color: vec4<f32>;
-    [[location(1)]] uv: vec2<f32>;
+    [[location(0)]] uv: vec2<f32>;
 };
 /// Entry point for the fragment shader
 [[stage(fragment)]]
 fn fs_main(in: FragmentInput) -> [[location(0)]] vec4<f32> {
     return textureSample(d_texture, d_sampler, in.uv);
-    // return in.color;
-    // return vec4<f32>(0.0, 1.0, 0.0, 1.0);
 }

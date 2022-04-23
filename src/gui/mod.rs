@@ -3,7 +3,7 @@ mod arrow_shapes;
 
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::render::render_resource::PrimitiveTopology;
-use bevy::sprite::Mesh2dHandle;
+use bevy::sprite::{Mesh2dHandle, MaterialMesh2dBundle};
 use bevy::{prelude::*, render::mesh::Indices};
 
 // use bevy_egui::{egui, EguiContext, EguiPlugin};
@@ -18,12 +18,13 @@ pub fn explore_mesh(_mesh: DelaunayMesh) {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(arrow_instance::ArrowPlugin)
-        .add_plugin(FrameTimeDiagnosticsPlugin::default())
+        // .add_plugin(FrameTimeDiagnosticsPlugin::default())
         // .add_plugin(EguiPlugin)
         // Systems that create Egui widgets should be run during the `CoreStage::Update` stage,
         // or after the `EguiSystem::BeginFrame` system (which belongs to the `CoreStage::PreUpdate` stage).
         // .add_system(ui_example)
         // .insert_resource(Msaa { samples: 1 })
+        .insert_resource(ClearColor(Color::TOMATO))
         .init_resource::<MousePosition>()
         .add_startup_system_to_stage(StartupStage::PreStartup, setup_default_arrow_frame.label("default arrow frame"))
         .add_startup_system(setup_system.after("default arrow frame"))
@@ -91,9 +92,16 @@ fn setup_system(
     mut meshes: ResMut<Assets<Mesh>>,
     asset_server: Res<AssetServer>,
     entity: Query<Entity, With<ArrowFrame>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let entity = entity.single();
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    commands.spawn_bundle(MaterialMesh2dBundle {
+        material: materials.add(ColorMaterial::from(Color::WHITE)),
+        mesh: meshes.add(Mesh::from(shape::Quad::default())).into(),
+        transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)).with_scale(Vec3::splat(100.0)),
+        ..Default::default()
+    });
 
     // commands.spawn().insert(Arrow(
     //     Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
