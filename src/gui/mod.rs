@@ -22,7 +22,6 @@ pub fn explore_mesh(mesh: DelaunayMesh) {
         .add_startup_system_to_stage(StartupStage::PreStartup, setup_arrow_frames)
         .add_startup_system(draw_mesh)
         .add_startup_system(setup_system)
-        .add_system(clicked)
         .run();
 }
 
@@ -31,7 +30,8 @@ fn draw_mesh(
     mut meshes: ResMut<Assets<Mesh>>,
     asset_server: Res<AssetServer>,
     mesh: NonSend<DelaunayMesh>,
-    arrow_frame: Query<Entity, With<bevy_arrow::ArrowFrame>>,
+    red_arrow_frame: Query<Entity, With<RedArrowFrame>>,
+    white_arrow_frame: Query<Entity, With<WhiteArrowFrame>>,
 ) {
     // let mesh_handle = Mesh2dHandle(meshes.add(bevy_arrow::build_arrow_strip_mesh()));
 
@@ -63,51 +63,52 @@ fn draw_mesh(
             commands.spawn().insert(bevy_arrow::Arrow {
                 tail: Vec3::new(origin.x as f32, origin.y as f32, 0.0),
                 head: Vec3::new(dest.x as f32, dest.y as f32, 0.0),
-                arrow_frame: arrow_frame.single(),
+                arrow_frame: red_arrow_frame.single(),
                 width: 16.0,
             });
         }
     }
 }
 
-// fn clicked(
-//     mut commands: Commands,
-//     mouse_position: Res<mouse::MousePosition>,
-//     mouse_button_input: Res<Input<MouseButton>>,
-//     entity: Query<Entity, With<bevy_arrow::ArrowFrame>>,
-// ) {
-//     if mouse_button_input.just_pressed(MouseButton::Left) {
-//         commands.spawn().insert(bevy_arrow::Arrow {
-//             tail: (0.0, 0.0, 0.0).into(),
-//             head: (mouse_position.0, 0.0).into(),
-//             arrow_frame: entity.single(),
-//             width: 16.0,
-//         });
-//     }
-// }
+#[derive(Component)]
+struct WhiteArrowFrame;
 
-pub fn setup_default_arrow_frame(
+#[derive(Component)]
+struct RedArrowFrame;
+
+pub fn setup_arrow_frames(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     asset_server: Res<AssetServer>,
 ) {
     let mesh_handle = Mesh2dHandle(meshes.add(bevy_arrow::build_arrow_strip_mesh()));
 
-    let texture_handle: Handle<Image> = asset_server.load("images/node_arrow_80x16.png");
+    let white_texture_handle: Handle<Image> = asset_server.load("images/node_arrow_80x16.png");
+    let red_texture_handle: Handle<Image> = asset_server.load("images/node_arrow_red_80x16.png");
 
-    commands.spawn_bundle(bevy_arrow::ArrowsBundle {
-        mesh: mesh_handle,
-        texture: texture_handle,
-        local: Transform::from_translation(Vec3::new(0.0, 0.0, 99.0)),
-        ..Default::default()
-    });
+    commands
+        .spawn_bundle(bevy_arrow::ArrowsBundle {
+            mesh: mesh_handle.clone(),
+            texture: white_texture_handle,
+            local: Transform::from_translation(Vec3::new(0.0, 0.0, 99.0)),
+            ..Default::default()
+        })
+        .insert(WhiteArrowFrame);
+    commands
+        .spawn_bundle(bevy_arrow::ArrowsBundle {
+            mesh: mesh_handle,
+            texture: red_texture_handle,
+            local: Transform::from_translation(Vec3::new(0.0, 0.0, 99.0)),
+            ..Default::default()
+        })
+        .insert(RedArrowFrame);
 }
 
 fn setup_system(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     asset_server: Res<AssetServer>,
-    entity: Query<Entity, With<bevy_arrow::ArrowFrame>>,
+    entity: Query<Entity, With<WhiteArrowFrame>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let entity = entity.single();
