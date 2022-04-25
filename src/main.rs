@@ -6,7 +6,7 @@ use quad_edge::{
 mod gui;
 
 fn main() {
-    let x = 150.0;
+    let x = 50.0;
 
     let mut mesh = DelaunayMesh::new();
     let a = mesh.insert_vertex((0.0, 100.0));
@@ -22,7 +22,7 @@ fn main() {
 
     let e5 = mesh.connect_primal(e3.sym(), e1.sym());
     // let e5 = mesh.connect_primal(e3, e4);
-    println!("isDelaunay: {}", mesh.is_delaunay(e5));
+    println!("{:?} isDelaunay: {}", e5, mesh.is_delaunay(e5));
 
     #[cfg(feature = "gui")]
     gui::explore_mesh(mesh);
