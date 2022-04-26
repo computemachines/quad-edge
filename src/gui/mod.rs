@@ -1,4 +1,5 @@
 use bevy::pbr::wireframe::{Wireframe, WireframePlugin};
+use bevy::prelude::shape::Quad;
 use bevy::prelude::*;
 use bevy::render::mesh::VertexAttributeValues;
 use bevy::render::render_resource::WgpuFeatures;
@@ -10,14 +11,20 @@ use bevy_arrow::ATTRIBUTE_WEIGHT;
 use bevy_egui::egui::{Label, RichText, Sense};
 use bevy_egui::{egui, EguiContext, EguiPlugin};
 use quad_edge::delaunay_voronoi::DelaunayMesh;
-use quad_edge::mesh::quad::PrimalDEdgeEntity;
+use quad_edge::mesh::quad::{PrimalDEdgeEntity, VertexEntity};
 
 mod mouse;
+mod shapes;
 
 #[derive(Component, Clone, Copy, PartialEq)]
 struct PDEdgeEntity(usize);
 impl From<PrimalDEdgeEntity> for PDEdgeEntity {
     fn from(e: PrimalDEdgeEntity) -> Self {
+        Self(e.0)
+    }
+}
+impl From<PDEdgeEntity> for PrimalDEdgeEntity {
+    fn from(e: PDEdgeEntity) -> Self {
         Self(e.0)
     }
 }
@@ -28,10 +35,14 @@ struct SelectedDedge(Option<PDEdgeEntity>);
 pub fn explore_mesh(mesh: DelaunayMesh) {
     App::new()
         .add_plugins(DefaultPlugins)
+        .insert_resource(Msaa {
+            samples: 4,
+        })
         .add_plugin(mouse::SimpleMouse)
         .add_plugin(bevy_arrow::ArrowPlugin)
         .insert_resource(ClearColor(Color::WHITE))
         .init_resource::<SelectedDedge>()
+        .insert_resource::<f32>(100.0)
         .insert_non_send_resource(mesh)
         // .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(EguiPlugin)
@@ -39,11 +50,172 @@ pub fn explore_mesh(mesh: DelaunayMesh) {
         // or after the `EguiSystem::BeginFrame` system (which belongs to the `CoreStage::PreUpdate` stage).
         .add_startup_system_to_stage(StartupStage::PreStartup, setup_arrow_frames)
         .add_startup_system(setup_system)
-        .add_startup_system(add_mesh)
+        .add_startup_system(insert_initial_mesh)
+        .add_startup_system(init_circles)
         .add_system(ui_system)
-        .add_system(update_mesh)
+        .add_system(update_delaunay_spread)
+        .add_system(update_mesh_positions.label("mesh position"))
+        .add_system(update_mesh_selected.after("mesh position"))
         .add_system(animate_pulsing_arrow_frame)
+        .add_system(debug_in_circle_test)
         .run();
+}
+
+fn set_mesh_vertex_spread(mesh: &mut DelaunayMesh, x: f32) {
+    let mut v1 = mesh.get_vertex(VertexEntity(2)).borrow_mut();
+    let mut v2 = mesh.get_vertex(VertexEntity(3)).borrow_mut();
+    v1.x = x as f64;
+    v2.x = -x as f64;
+}
+
+#[derive(Component)]
+struct A;
+
+#[derive(Component)]
+struct X;
+
+#[derive(Component)]
+struct Y;
+
+#[derive(Component)]
+struct B;
+
+fn init_circles(
+    mut commands: Commands,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+) {
+    let handle_A = materials.add(ColorMaterial::from(Color::Rgba {
+        red: 0.0,
+        green: 0.0,
+        blue: 1.0,
+        alpha: 0.5,
+    }));
+    let handle_X = materials.add(ColorMaterial::from(Color::Rgba {
+        red: 1.0,
+        green: 0.0,
+        blue: 0.0,
+        alpha: 0.5,
+    }));
+    let handle_Y = materials.add(ColorMaterial::from(Color::Rgba {
+        red: 1.0,
+        green: 1.0,
+        blue: 0.0,
+        alpha: 0.5,
+    }));
+    let handle_B = materials.add(ColorMaterial::from(Color::Rgba {
+        red: 0.0,
+        green: 1.0,
+        blue: 0.0,
+        alpha: 0.5,
+    }));
+    let mesh = shapes::build_circle(2); //Mesh::from(Quad::default());
+    let mesh_handle = Mesh2dHandle(meshes.add(mesh));
+
+    commands
+        .spawn_bundle(MaterialMesh2dBundle {
+            mesh: mesh_handle.clone(),
+            material: handle_A,
+            visibility: Visibility { is_visible: true },
+            ..Default::default()
+        })
+        .insert(A);
+    commands
+        .spawn_bundle(MaterialMesh2dBundle {
+            mesh: mesh_handle.clone(),
+            material: handle_X,
+            visibility: Visibility { is_visible: false },
+            ..Default::default()
+        })
+        .insert(X);
+    commands
+        .spawn_bundle(MaterialMesh2dBundle {
+            mesh: mesh_handle.clone(),
+            material: handle_Y,
+            visibility: Visibility { is_visible: false },
+            ..Default::default()
+        })
+        .insert(Y);
+    commands
+        .spawn_bundle(MaterialMesh2dBundle {
+            mesh: mesh_handle.clone(),
+            material: handle_B,
+            visibility: Visibility { is_visible: false },
+            ..Default::default()
+        })
+        .insert(B);
+}
+
+fn debug_in_circle_test(
+    mut commands: Commands,
+    mesh: NonSend<DelaunayMesh>,
+    selected_dedge: Res<SelectedDedge>,
+    mut visibility: Query<&mut Visibility>,
+    mut transform: Query<&mut Transform>,
+    entity_a: Query<Entity, With<A>>,
+    entity_x: Query<Entity, With<X>>,
+    entity_y: Query<Entity, With<Y>>,
+    entity_b: Query<Entity, With<B>>,
+) {
+    if selected_dedge.0.is_none() {
+        return;
+    }
+
+    let xy = selected_dedge.0.unwrap().into();
+
+    let xy = mesh.primal(xy);
+    let a = xy.onext().dest().borrow().clone();
+    let x = xy.org().borrow().clone();
+    let y = xy.dest().borrow().clone();
+    let b = xy.oprev().dest().borrow().clone();
+
+    *transform
+        .get_component_mut::<Transform>(entity_a.single())
+        .unwrap() = Transform {
+        translation: ((a.x as f32, a.y as f32, 0.0).into()),
+        rotation: Default::default(),
+        scale: Vec3::splat(20.0),
+    };
+    visibility
+        .get_component_mut::<Visibility>(entity_a.single())
+        .unwrap()
+        .is_visible = true;
+
+    *transform
+        .get_component_mut::<Transform>(entity_x.single())
+        .unwrap() = Transform {
+        translation: ((x.x as f32, x.y as f32, 0.0).into()),
+        rotation: Default::default(),
+        scale: Vec3::splat(20.0),
+    };
+    visibility
+        .get_component_mut::<Visibility>(entity_x.single())
+        .unwrap()
+        .is_visible = true;
+
+    *transform
+        .get_component_mut::<Transform>(entity_y.single())
+        .unwrap() = Transform {
+        translation: ((y.x as f32, y.y as f32, 0.0).into()),
+        rotation: Default::default(),
+        scale: Vec3::splat(20.0),
+    };
+    visibility
+        .get_component_mut::<Visibility>(entity_y.single())
+        .unwrap()
+        .is_visible = true;
+
+    *transform
+        .get_component_mut::<Transform>(entity_b.single())
+        .unwrap() = Transform {
+        translation: ((b.x as f32, b.y as f32, 0.0).into()),
+        rotation: Default::default(),
+        scale: Vec3::splat(20.0),
+    };
+    visibility
+        .get_component_mut::<Visibility>(entity_b.single())
+        .unwrap()
+        .is_visible = true;
 }
 
 fn ui_system(
@@ -51,8 +223,16 @@ fn ui_system(
     mut counter: Local<usize>,
     edges: Query<&PDEdgeEntity>,
     mut selected_dedge: ResMut<SelectedDedge>,
+    mut spread: ResMut<f32>,
 ) {
     egui::Window::new("Primal DEdges").show(egui_context.ctx_mut(), |ui| {
+        ui.add(egui::Slider::new(&mut *spread, 0.0..=200.0).text("Spread"));
+        ui.label(format!(
+            "Selected Dedge: {}",
+            selected_dedge
+                .0
+                .map_or("None".to_string(), |e| e.0.to_string())
+        ));
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .show(ui, |ui| {
@@ -72,7 +252,7 @@ fn ui_system(
     });
 }
 
-fn add_mesh(
+fn insert_initial_mesh(
     mut commands: Commands,
     mesh: NonSend<DelaunayMesh>,
     red_arrow_frame: Query<Entity, (With<RedArrowFrame>, Without<PulsingArrowFrame>)>,
@@ -81,7 +261,6 @@ fn add_mesh(
     let red_arrow_frame = red_arrow_frame.single();
     let white_arrow_frame = white_arrow_frame.single();
 
-    info!("setting up mesh");
     for (ent, dedge) in mesh
         .primal_dedges
         .iter()
@@ -95,7 +274,7 @@ fn add_mesh(
             let dest = mesh.get_primal(ent.sym()).borrow().org;
             let dest = mesh.get_vertex(dest).borrow().clone();
 
-            let arrow_frame = if mesh.is_delaunay(ent) {
+            let arrow_frame = if !mesh.is_delaunay(ent) {
                 red_arrow_frame
             } else {
                 white_arrow_frame
@@ -114,7 +293,47 @@ fn add_mesh(
     }
 }
 
-fn update_mesh(
+fn update_delaunay_spread(mut mesh: NonSendMut<DelaunayMesh>, spread: Res<f32>) {
+    set_mesh_vertex_spread(&mut *mesh, *spread)
+}
+
+fn update_mesh_positions(
+    mesh: NonSend<DelaunayMesh>,
+    mut query: Query<(&mut bevy_arrow::Arrow, &PDEdgeEntity)>,
+
+    red_arrow_frame: Query<Entity, (With<RedArrowFrame>, Without<PulsingArrowFrame>)>,
+    white_arrow_frame: Query<Entity, (With<WhiteArrowFrame>, Without<PulsingArrowFrame>)>,
+) {
+    let red_arrow_frame = red_arrow_frame.single();
+    let white_arrow_frame = white_arrow_frame.single();
+
+    for (mut arrow, ent) in query.iter_mut() {
+        let ent = PrimalDEdgeEntity::from(*ent);
+        let dedge = mesh.get_primal(ent);
+
+        let origin = dedge.borrow().org;
+        let origin = mesh.get_vertex(origin).borrow().clone();
+
+        let dest = mesh.get_primal(ent.sym()).borrow().org;
+        let dest = mesh.get_vertex(dest).borrow().clone();
+
+        let arrow_frame = if !mesh.is_delaunay(ent) {
+            red_arrow_frame
+        } else {
+            white_arrow_frame
+        };
+
+        arrow.tail.x = origin.x as f32;
+        arrow.tail.y = origin.y as f32;
+        arrow.head.x = dest.x as f32;
+        arrow.head.y = dest.y as f32;
+        arrow.arrow_frame = arrow_frame;
+    }
+}
+
+// fn update_mesh_is_delaunay() {}
+
+fn update_mesh_selected(
     selected_dedge: Res<SelectedDedge>,
     red_arrow_frame: Query<Entity, (With<RedArrowFrame>, Without<PulsingArrowFrame>)>,
     white_arrow_frame: Query<Entity, (With<WhiteArrowFrame>, Without<PulsingArrowFrame>)>,
@@ -166,6 +385,7 @@ pub fn setup_arrow_frames(
 
     let white_texture_handle: Handle<Image> = asset_server.load("images/node_arrow_80x16.png");
     let red_texture_handle: Handle<Image> = asset_server.load("images/node_arrow_red_80x16.png");
+    info!("laksjdf");
 
     // Static arrow frames
     commands
@@ -229,7 +449,7 @@ fn animate_pulsing_arrow_frame(
     time: Res<Time>,
 ) {
     for mesh_handle in mesh_handles.iter() {
-        let mut mesh = meshes.get_mut(mesh_handle.clone().0).unwrap();
+        let mesh = meshes.get_mut(mesh_handle.clone().0).unwrap();
         let t = time.seconds_since_startup() * 2.0 % 1.0;
         let weights = mesh.attribute_mut(ATTRIBUTE_WEIGHT).unwrap();
         if let VertexAttributeValues::Float32(values) = weights {

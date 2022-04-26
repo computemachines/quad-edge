@@ -11,6 +11,7 @@ gui = ["bevy"]
 [dependencies]
 bevy_arrow = { path = "../bevy_arrow" }
 cgmath = "0.18.0"
+itertools = "0.10.3"
 bevy = { version="0.7.0", optional = true, features = ["dynamic"] }
 # bevy = { path="../bevy", optional = true, features = ["dynamic"] }
 bevy_egui = "0.13"
