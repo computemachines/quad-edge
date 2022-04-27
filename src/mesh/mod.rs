@@ -9,25 +9,27 @@ pub mod quad;
 /// Tools for constructing, navigating and manipulating meshes.
 ///
 #[derive(Debug)]
-pub struct Mesh<V, F> {
+pub struct Mesh<V, F, Cache> {
     pub primal_dedges: Vec<Option<RefCell<PrimalDirectedEdge>>>,
     pub dual_dedges: Vec<Option<RefCell<DualDirectedEdge>>>,
     pub vertices: Vec<Option<RefCell<V>>>,
     pub faces: Vec<Option<RefCell<F>>>,
+    cache: Option<Cache>,
 }
 
-impl<V, F> Default for Mesh<V, F> {
+impl<V, F, Cache> Default for Mesh<V, F, Cache> {
     fn default() -> Self {
         Self {
             primal_dedges: Default::default(),
             dual_dedges: Default::default(),
             vertices: Default::default(),
             faces: Default::default(),
+            cache: None,
         }
     }
 }
 
-impl<'a, V, F> Mesh<V, F> {
+impl<'a, V, F, Cache> Mesh<V, F, Cache> {
     pub fn new() -> Self {
         Mesh::default()
     }
@@ -57,7 +59,7 @@ impl<'a, V, F> Mesh<V, F> {
         e
     }
 
-    pub fn get_primal_onext_ring(&'a self, entity: PrimalDEdgeEntity) -> PrimalOnextRing<'a, V, F> {
+    pub fn get_primal_onext_ring(&'a self, entity: PrimalDEdgeEntity) -> PrimalOnextRing<'a, V, F, Cache> {
         PrimalOnextRing {
             first: entity,
             current: None,
@@ -164,18 +166,18 @@ impl<'a, V, F> Mesh<V, F> {
         self.get_primal(e.sym()).borrow_mut().org = dest;
     }
 
-    pub fn primal(&'a self, e: PrimalDEdgeEntity) -> MeshCursor<'a, V, F, PrimalDEdgeEntity> {
+    pub fn primal(&'a self, e: PrimalDEdgeEntity) -> MeshCursor<'a, V, F, PrimalDEdgeEntity, Cache> {
         MeshCursor::new(self, e)
     }
 }
 
-pub struct PrimalOnextRing<'a, V, F> {
+pub struct PrimalOnextRing<'a, V, F, Cache> {
     first: PrimalDEdgeEntity,
     current: Option<PrimalDEdgeEntity>,
-    mesh: &'a Mesh<V, F>,
+    mesh: &'a Mesh<V, F, Cache>,
 }
 
-impl<'a, V, F> Iterator for PrimalOnextRing<'a, V, F> {
+impl<'a, V, F, Cache> Iterator for PrimalOnextRing<'a, V, F, Cache> {
     type Item = PrimalDEdgeEntity;
     fn next(&mut self) -> Option<Self::Item> {
         match self.current {

@@ -2,7 +2,7 @@ use cgmath::Point2;
 
 use crate::{mesh::{Mesh, quad::PrimalDEdgeEntity}, geometry::in_circle};
 
-pub type DelaunayVertex = Point2<f64>;
+pub type GeometricVertex = Point2<f64>;
 
 #[derive(Debug)]
 pub enum VoronoiVertex {
@@ -16,7 +16,8 @@ impl Default for VoronoiVertex {
     }
 }
 
-pub type DelaunayMesh = Mesh<DelaunayVertex, VoronoiVertex>;
+
+pub type DelaunayMesh = Mesh<GeometricVertex, VoronoiVertex, ()>;
 
 impl DelaunayMesh {
     pub fn is_delaunay(&self, xy: PrimalDEdgeEntity) -> bool {
@@ -27,6 +28,9 @@ impl DelaunayMesh {
         let b = xy.oprev().dest().borrow().clone();
         
         in_circle(a, x, y, b)
+    }
+    pub fn insert_delaunay_vertex(&mut self, v: GeometricVertex) {
+
     }
 }
 
