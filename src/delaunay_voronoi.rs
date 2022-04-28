@@ -19,6 +19,7 @@ impl Default for VoronoiVertex {
 
 pub type DelaunayMesh = Mesh<GeometricVertex, VoronoiVertex, ()>;
 
+
 impl DelaunayMesh {
     pub fn is_delaunay(&self, xy: PrimalDEdgeEntity) -> bool {
         let xy = self.primal(xy);
