@@ -1,4 +1,31 @@
+use bevy::utils::HashMap;
 use cgmath::{Matrix4, Point2, SquareMatrix};
+
+// Quad here indicates /Quad-Tree/ hierachical data structure not /Quad-Edge/.
+struct Rect<T> {
+    bottom_left: Point2<T>,
+    upper_right: Point2<T>,
+}
+
+struct QEntity(usize);
+
+struct QuadTree {
+    root: QEntity,
+    world: HashMap<QEntity, QuadNode>,
+}
+
+enum QuadNode {
+    Branch {
+        aabb: Rect<f32>,
+        children: []
+    }
+    Leaf {
+        aabb: Rect<f32>,
+        
+    }
+}
+
+
 
 pub fn in_circle(a: Point2<f64>, b: Point2<f64>, c: Point2<f64>, d: Point2<f64>) -> bool {
     let test = Matrix4::new(
