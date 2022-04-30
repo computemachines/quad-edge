@@ -1,4 +1,4 @@
-use bevy::utils::HashMap;
+// use bevy::utils::HashMap;
 use cgmath::{Matrix4, Point2, SquareMatrix};
 
 // Quad here indicates /Quad-Tree/ hierachical data structure not /Quad-Edge/.
@@ -11,14 +11,14 @@ struct QEntity(usize);
 
 struct QuadTree {
     root: QEntity,
-    world: HashMap<QEntity, QuadNode>,
+    // world: HashMap<QEntity, QuadNode>,
 }
 
 enum QuadNode {
     Branch {
         aabb: Rect<f32>,
-        children: []
-    }
+        // children: []
+    },
     Leaf {
         aabb: Rect<f32>,
         

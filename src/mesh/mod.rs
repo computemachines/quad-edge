@@ -1,8 +1,8 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, iter};
 
 use self::quad::{
-    DualDEdgeEntity, DualDirectedEdge, FaceEntity, PrimalDEdgeEntity, PrimalDirectedEdge,
-    VertexEntity, MeshCursor,
+    DualDEdgeEntity, DualDirectedEdge, FaceEntity, MeshCursor, PrimalDEdgeEntity,
+    PrimalDirectedEdge, VertexEntity,
 };
 
 pub mod quad;
@@ -33,27 +33,32 @@ impl<'a, V, F, Cache> Mesh<V, F, Cache> {
     pub fn new() -> Self {
         Mesh::default()
     }
-    
+
     pub fn reserve_vertex(&mut self) -> VertexEntity {
         let e = VertexEntity(self.vertices.len());
         self.vertices.push(None);
         e
     }
-    
+
     pub fn reserve_face(&mut self) -> FaceEntity {
         let e = FaceEntity(self.faces.len());
         self.faces.push(None);
         e
     }
-    
+
     pub fn insert_reserved_vertex<U: Into<V>>(&mut self, entity: VertexEntity, v: U) {
-        self.vertices.get_mut(entity.0).unwrap().replace(v.into());
+        self.vertices
+            .get_mut(entity.0)
+            .unwrap()
+            .replace(RefCell::new(v.into()));
     }
-    
+
     pub fn insert_reserved_face(&mut self, entity: FaceEntity, f: F) {
-        self.faces.get_mut(entity.0).unwrap().replace(f);
+        self.faces
+            .get_mut(entity.0)
+            .unwrap()
+            .replace(RefCell::new(f));
     }
-        
 
     pub fn get_primal(&self, entity: PrimalDEdgeEntity) -> &RefCell<PrimalDirectedEdge> {
         self.primal_dedges.get(entity.0).unwrap().as_ref().unwrap()
@@ -79,7 +84,7 @@ impl<'a, V, F, Cache> Mesh<V, F, Cache> {
         self.faces.push(Some(RefCell::new(f)));
         e
     }
-    
+
     pub fn delete_face(&mut self, entity: FaceEntity) {
         self.faces.get_mut(entity.0).unwrap().take();
     }
@@ -87,19 +92,25 @@ impl<'a, V, F, Cache> Mesh<V, F, Cache> {
         self.vertices.get_mut(entity.0).unwrap().take();
     }
 
-    pub fn get_primal_onext_ring(&'a self, entity: PrimalDEdgeEntity) -> PrimalOnextRing<'a, V, F, Cache> {
+    pub fn get_primal_onext_ring(
+        &'a self,
+        entity: PrimalDEdgeEntity,
+    ) -> PrimalOnextRing<'a, V, F, Cache> {
         PrimalOnextRing {
             first: entity,
-            current: None,
+            current: Some(entity),
             mesh: self,
         }
     }
-    
-    pub fn get_dual_onext_ring(&'a self, entity: DualDEdgeEntity) -> DualOnextRing<'a, V, F, Cache> {
+
+    pub fn get_dual_onext_ring(
+        &'a self,
+        entity: DualDEdgeEntity,
+    ) -> DualOnextRing<'a, V, F, Cache> {
         DualOnextRing {
             first: entity,
-            current: None,
-            mesh: self
+            current: Some(entity),
+            mesh: self,
         }
     }
 
@@ -113,21 +124,21 @@ impl<'a, V, F, Cache> Mesh<V, F, Cache> {
         let entity = PrimalDEdgeEntity(self.primal_dedges.len());
 
         self.primal_dedges
-            .push(Some(RefCell::new(PrimalDirectedEdge {
+            .push(Some(RefCell::new(PrimalDirectedEdge {//entity
                 org: org,
                 onext: entity,
             })));
         self.primal_dedges
-            .push(Some(RefCell::new(PrimalDirectedEdge {
+            .push(Some(RefCell::new(PrimalDirectedEdge {//entity.rot.rot
                 org: dest,
                 onext: entity.sym(),
             })));
-        self.dual_dedges.push(Some(RefCell::new(DualDirectedEdge {
-            org: left,
+        self.dual_dedges.push(Some(RefCell::new(DualDirectedEdge {//entity.rot
+            org: right,
             onext: entity.rot_inv(),
         })));
-        self.dual_dedges.push(Some(RefCell::new(DualDirectedEdge {
-            org: right,
+        self.dual_dedges.push(Some(RefCell::new(DualDirectedEdge {//entity.rot.rot.rot
+            org: left,
             onext: entity.rot(),
         })));
 
@@ -156,8 +167,12 @@ impl<'a, V, F, Cache> Mesh<V, F, Cache> {
 
     // fn splice_dual(&self, )
 
-    // /// Create new primal edge from the end of `from` to the begining of `to`
-    pub fn connect_primal(&mut self, from: PrimalDEdgeEntity, to: PrimalDEdgeEntity) -> PrimalDEdgeEntity {
+    /// Create new primal edge from the end of `from` to the begining of `to`
+    pub fn connect_primal(
+        &mut self,
+        from: PrimalDEdgeEntity,
+        to: PrimalDEdgeEntity,
+    ) -> PrimalDEdgeEntity {
         let org = self.get_primal(from.sym()).borrow().org;
         let dest = self.get_primal(to).borrow().org;
         let left = self.get_dual(from.rot_inv()).borrow().org;
@@ -168,6 +183,23 @@ impl<'a, V, F, Cache> Mesh<V, F, Cache> {
 
         self.splice_primal(e, from_lnext);
         self.splice_primal(e.sym(), to);
+
+        e
+    }
+
+    /// Create new primal edge that extends from a primal edge `dest` to a dangling vertex
+    pub fn connect_vertex(
+        &mut self,
+        old_edge: PrimalDEdgeEntity,
+        dest: VertexEntity,
+    ) -> PrimalDEdgeEntity {
+        let org = self.get_primal(old_edge.sym()).borrow().org;
+        let left = self.get_dual(old_edge.rot_inv()).borrow().org;
+        let right = self.get_dual(old_edge.rot()).borrow().org;
+
+        let e = self.make_edge(org, dest, left, right);
+
+        self.splice_primal(e, old_edge.sym());
 
         e
     }
@@ -202,40 +234,54 @@ impl<'a, V, F, Cache> Mesh<V, F, Cache> {
         self.get_primal(e.sym()).borrow_mut().org = dest;
     }
 
-    pub fn primal(&'a self, e: PrimalDEdgeEntity) -> MeshCursor<'a, V, F, PrimalDEdgeEntity, Cache> {
+    pub fn primal(
+        &'a self,
+        e: PrimalDEdgeEntity,
+    ) -> MeshCursor<'a, V, F, PrimalDEdgeEntity, Cache> {
         MeshCursor::new(self, e)
     }
-    
-    pub fn face_to_vertex(&self, from_face: DualDEdgeEntity) -> (VertexEntity, Vec<FaceEntity>) {
+
+    pub fn face_to_vertex(
+        &mut self,
+        from_face: DualDEdgeEntity,
+    ) -> (VertexEntity, Vec<FaceEntity>) {
         // delete the face object, but don't touch the `FaceEntities` in the `DualDedge::org`s
-        self.delete_face(self.get_dual(from_face).borrow().org);
-        
+        let old_face = self.get_dual(from_face).borrow().org;
+        self.delete_face(old_face);
+
+        let new_vertex = self.reserve_vertex();
+
         // the Lnext operator ring. The set of dedges with Left == from_face.org
-    	let lnext_ring = self.get_dual_onext_ring(from_face).map(|dual| dual.rot());
-    	
-    	let new_vertex = self.reserve_vertex();
-    	let new_faces = vec![self.reserve_face(), self.reverse_face()];
-    	
-    	let first_outer_edge = face_edges.next().unwrap();
-    	let org = self.get_primal(first_outer_edge).borrow().org;
-    	
-    	// create simple quad-edge in a separate manifold.
-    	let mut newest_dedge_inward = self.make_edge(org, new_vertex, new_faces[0], new_faces[1]);
-        
+        let lnext_ring = self
+            .get_dual_onext_ring(from_face)
+            .map(|dual| dual.rot())
+            .collect::<Vec<_>>();
+        let new_faces = iter::repeat(lnext_ring.len())
+            .map(|_| self.reserve_face())
+            .collect::<Vec<_>>();
+
+        let first_outer_edge = from_face.rot(); //lnext_ring.next().unwrap();
+        let org = self.get_primal(first_outer_edge).borrow().org;
+
+        let mut newest_dedge_inward = self.make_edge(org, new_vertex, new_faces[0], new_faces[1]);
+        // create simple quad-edge in a separate manifold.
+
         // splice new edge into the old manifold
         self.splice_primal(newest_dedge_inward, first_outer_edge);
-        // `new_dedge_inward` is now dangling from org->new_vertex
-        
-        // Next, connect last created inward edge 
-//        let mut newest_dedge_outward = new_dedge_inward.sym();
-        for face_edge in face_edges {
-            
-        
+        // `new_dedge_inward` is now attached with .org=org, and .dest=new_vertex
+
+        // Next, connect last created inward edge
+
+        //        let mut newest_dedge_outward = new_dedge_inward.sym();
+        for face_edge in lnext_ring {
             let newest_dedge_outward = self.connect_primal(newest_dedge_inward, face_edge);
             newest_dedge_inward = newest_dedge_outward.sym();
         }
+
+        (new_vertex, new_faces)
     }
 }
+
 
 pub struct PrimalOnextRing<'a, V, F, Cache> {
     first: PrimalDEdgeEntity,
@@ -246,42 +292,31 @@ pub struct PrimalOnextRing<'a, V, F, Cache> {
 impl<'a, V, F, Cache> Iterator for PrimalOnextRing<'a, V, F, Cache> {
     type Item = PrimalDEdgeEntity;
     fn next(&mut self) -> Option<Self::Item> {
-        match self.current {
-            Some(current) => {
-                self.current = Some(self.mesh.get_primal(current).borrow().onext);
-                if Some(self.first) == self.current {
-                    return None;
-                } else {
-                    self.current
-                }
-            }
-            None => {
-                self.current = Some(self.mesh.get_primal(self.first).borrow().onext);
-                self.current
-            }
+        if let Some(current) = self.current {
+            let next = self.mesh.get_primal(current).borrow().onext;
+            self.current = if next != self.first { Some(next) } else { None };
+            Some(current)
+        } else {
+            None
         }
     }
 }
 
+//
 pub struct DualOnextRing<'a, V, F, Cache> {
     first: DualDEdgeEntity,
     current: Option<DualDEdgeEntity>,
-    mesh: &'a Mesh<V, F, Cache>
+    mesh: &'a Mesh<V, F, Cache>,
 }
 impl<'a, V, F, Cache> Iterator for DualOnextRing<'a, V, F, Cache> {
-    type Item = PrimalDEdgeEntity;
+    type Item = DualDEdgeEntity;
     fn next(&mut self) -> Option<Self::Item> {
-        match self.current {
-            Some(current) => {
-                self.current = Some(self.mesh.get_primal(current).borrow().onext);
-                if Some(self.first) == self.current {
-                    return None;
-                } else {
-                    self.current
-                }
-            }
-            None => {
-                self.current = Some(self.mesh.get_dual(self.first).borrow().onext);
-                self.current
-            }
-            
+        if let Some(current) = self.current {
+            let next = self.mesh.get_dual(current).borrow().onext;
+            self.current = if next != self.first { Some(next) } else { None };
+            Some(current)
+        } else {
+            None
+        }
+    }
+}

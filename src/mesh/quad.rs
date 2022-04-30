@@ -106,6 +106,9 @@ impl<'a, V, F, Cache> MeshCursor<'a, V, F, PrimalDEdgeEntity, Cache> {
     pub fn oprev(&self) -> MeshCursor<'a, V, F, PrimalDEdgeEntity, Cache> {
         self.extend(self.mesh.get_dual(self.entity.rot()).borrow().onext.rot())
     }
+    pub fn lnext(&self) -> MeshCursor<'a, V, F, PrimalDEdgeEntity, Cache> {
+        self.extend(self.mesh.get_dual(self.entity.rot_inv()).borrow().onext.rot())
+    }
 }
 
 
