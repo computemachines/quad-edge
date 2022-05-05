@@ -17,7 +17,7 @@ fn main() {
     let e1 = mesh.make_edge(d, a, inf, inf);
     let e2 = mesh.make_edge(b, c, inf, inf);
     let e3 = mesh.connect_primal(e2.sym(), e1);
-    let e4 = mesh.connect_primal(e2, e1.sym());
+    let _e4 = mesh.connect_primal(e2, e1.sym());
 
     let e5 = mesh.connect_primal(e3.sym(), e1.sym());
     // let e5 = mesh.connect_primal(e3, e4);

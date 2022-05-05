@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-#[derive(Component, Default)]
+#[derive(Default)]
 pub struct MousePosition(pub Vec2);
 
 fn cursor_position_to_model_2d(window: &Window, position: Vec2) -> Vec2 {
