@@ -8,22 +8,22 @@ use quad_edge::mesh::quad::{PrimalDEdgeEntity, VertexEntity};
 pub struct MeshDraw;
 impl Plugin for MeshDraw {
     fn build(&self, app: &mut App) {
-        app.init_resource::<SelectedDedge>()        
-        .insert_resource::<f32>(100.0)
-        .add_event::<MeshEvent>()
-        .add_startup_system(insert_initial_mesh)
-        .add_startup_system(init_circles)
-        .add_system(swap_mesh_dedges)
-        .add_system(update_delaunay_spread)
-        .add_system(update_mesh_positions.label("mesh position"))
-        .add_system(update_mesh_selected.after("mesh position"))
-        .add_system(debug_in_circle_test);
+        app.init_resource::<SelectedDedge>()
+            .insert_resource::<f32>(150.0)
+            .add_event::<MeshEvent>()
+            .add_startup_system(insert_initial_mesh)
+            .add_startup_system(init_circles)
+            .add_system(insert_node.label("insert node"))
+            .add_system(swap_mesh_dedges.after("insert node"))
+            .add_system(update_delaunay_spread)
+            .add_system(update_mesh_positions.label("mesh position"))
+            .add_system(update_mesh_selected.after("mesh position"))
+            .add_system(debug_in_circle_test);
     }
 }
 
-
 #[derive(Component, Clone, Copy, PartialEq)]
-pub struct PDEdgeEntity( pub usize);
+pub struct PDEdgeEntity(pub usize);
 impl From<PrimalDEdgeEntity> for PDEdgeEntity {
     fn from(e: PrimalDEdgeEntity) -> Self {
         Self(e.0)
@@ -38,15 +38,31 @@ impl From<PDEdgeEntity> for PrimalDEdgeEntity {
 #[derive(Default)]
 pub struct SelectedDedge(pub Option<PDEdgeEntity>);
 
-
 pub enum MeshEvent {
     Swap(PDEdgeEntity),
+    Insert(Vec2),
 }
 
 fn swap_mesh_dedges(mut mesh_events: EventReader<MeshEvent>, mesh: NonSend<DelaunayMesh>) {
     for mesh_event in mesh_events.iter() {
         match mesh_event {
-            MeshEvent::Swap(e) => mesh.swap_primal((*e).into())
+            MeshEvent::Swap(e) => mesh.swap_primal((*e).into()),
+            _ => (),
+        }
+    }
+}
+
+fn insert_node(
+    mut mesh_events: EventReader<MeshEvent>,
+    mut mesh: NonSendMut<DelaunayMesh>,
+    mut selected_dedge: ResMut<SelectedDedge>,
+) {
+    for mesh_event in mesh_events.iter() {
+        match mesh_event {
+            MeshEvent::Insert(pos) => {
+                selected_dedge.0 = Some(mesh.locate_point((pos.x, pos.y).into())).map(|e| e.into());
+            }
+            _ => (),
         }
     }
 }
@@ -54,8 +70,8 @@ fn swap_mesh_dedges(mut mesh_events: EventReader<MeshEvent>, mesh: NonSend<Delau
 fn set_mesh_vertex_spread(mesh: &mut DelaunayMesh, x: f32) {
     let mut v1 = mesh.get_vertex(VertexEntity(2)).borrow_mut();
     let mut v2 = mesh.get_vertex(VertexEntity(3)).borrow_mut();
-    v1.x = x as f64;
-    v2.x = -x as f64;
+    v1.x = x;
+    v2.x = -x;
 }
 
 #[derive(Component)]
@@ -208,8 +224,20 @@ use super::default_arrows;
 fn insert_initial_mesh(
     mut commands: Commands,
     mesh: NonSend<DelaunayMesh>,
-    red_arrow_frame: Query<Entity, (With<default_arrows::RedArrowFrame>, Without<default_arrows::PulsingArrowFrame>)>,
-    white_arrow_frame: Query<Entity, (With<default_arrows::WhiteArrowFrame>, Without<default_arrows::PulsingArrowFrame>)>,
+    red_arrow_frame: Query<
+        Entity,
+        (
+            With<default_arrows::RedArrowFrame>,
+            Without<default_arrows::PulsingArrowFrame>,
+        ),
+    >,
+    white_arrow_frame: Query<
+        Entity,
+        (
+            With<default_arrows::WhiteArrowFrame>,
+            Without<default_arrows::PulsingArrowFrame>,
+        ),
+    >,
 ) {
     let red_arrow_frame = red_arrow_frame.single();
     let white_arrow_frame = white_arrow_frame.single();
@@ -254,8 +282,20 @@ fn update_mesh_positions(
     mesh: NonSend<DelaunayMesh>,
     mut query: Query<(&mut bevy_arrow::Arrow, &PDEdgeEntity)>,
 
-    red_arrow_frame: Query<Entity, (With<default_arrows::RedArrowFrame>, Without<default_arrows::PulsingArrowFrame>)>,
-    white_arrow_frame: Query<Entity, (With<default_arrows::WhiteArrowFrame>, Without<default_arrows::PulsingArrowFrame>)>,
+    red_arrow_frame: Query<
+        Entity,
+        (
+            With<default_arrows::RedArrowFrame>,
+            Without<default_arrows::PulsingArrowFrame>,
+        ),
+    >,
+    white_arrow_frame: Query<
+        Entity,
+        (
+            With<default_arrows::WhiteArrowFrame>,
+            Without<default_arrows::PulsingArrowFrame>,
+        ),
+    >,
 ) {
     let red_arrow_frame = red_arrow_frame.single();
     let white_arrow_frame = white_arrow_frame.single();
@@ -288,10 +328,34 @@ fn update_mesh_positions(
 
 fn update_mesh_selected(
     selected_dedge: Res<SelectedDedge>,
-    red_arrow_frame: Query<Entity, (With<default_arrows::RedArrowFrame>, Without<default_arrows::PulsingArrowFrame>)>,
-    white_arrow_frame: Query<Entity, (With<default_arrows::WhiteArrowFrame>, Without<default_arrows::PulsingArrowFrame>)>,
-    pulsing_red_arrow_frame: Query<Entity, (With<default_arrows::RedArrowFrame>, With<default_arrows::PulsingArrowFrame>)>,
-    pulsing_white_arrow_frame: Query<Entity, (With<default_arrows::WhiteArrowFrame>, With<default_arrows::PulsingArrowFrame>)>,
+    red_arrow_frame: Query<
+        Entity,
+        (
+            With<default_arrows::RedArrowFrame>,
+            Without<default_arrows::PulsingArrowFrame>,
+        ),
+    >,
+    white_arrow_frame: Query<
+        Entity,
+        (
+            With<default_arrows::WhiteArrowFrame>,
+            Without<default_arrows::PulsingArrowFrame>,
+        ),
+    >,
+    pulsing_red_arrow_frame: Query<
+        Entity,
+        (
+            With<default_arrows::RedArrowFrame>,
+            With<default_arrows::PulsingArrowFrame>,
+        ),
+    >,
+    pulsing_white_arrow_frame: Query<
+        Entity,
+        (
+            With<default_arrows::WhiteArrowFrame>,
+            With<default_arrows::PulsingArrowFrame>,
+        ),
+    >,
     mut query: Query<(&mut bevy_arrow::Arrow, &PDEdgeEntity)>,
 ) {
     let red_arrow_frame = red_arrow_frame.single();

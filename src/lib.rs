@@ -82,7 +82,6 @@ mod tests {
         assert_eq!(mesh.primal(e2).lnext().id(), e3);
         assert_eq!(mesh.primal(e2).sym().lnext().id(), e1.sym());
         assert_eq!(mesh.primal(e1.sym()).onext().id(), e2);
-
     }
 
     #[test]
@@ -96,6 +95,5 @@ mod tests {
 
         let e1 = mesh.make_edge(a, b, dummy, dummy);
         let e2 = mesh.make_edge(c, d, dummy, dummy);
-        
     }
 }

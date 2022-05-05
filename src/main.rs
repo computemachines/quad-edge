@@ -1,6 +1,10 @@
 use std::fmt::Debug;
 
-use quad_edge::{mesh::quad::{PrimalDEdgeEntity, DualDEdgeEntity}, topological::TopologicalMesh, delaunay_voronoi::{DelaunayMesh, VoronoiVertex}};
+use quad_edge::{
+    delaunay_voronoi::{DelaunayMesh, VoronoiVertex},
+    mesh::quad::{DualDEdgeEntity, PrimalDEdgeEntity},
+    topological::TopologicalMesh,
+};
 #[cfg(feature = "gui")]
 mod gui;
 
@@ -78,11 +82,7 @@ fn print_edge_info<T: Debug>(mesh: &TopologicalMesh<T>, e: PrimalDEdgeEntity) {
 fn show_primal<T: Debug>(mesh: &TopologicalMesh<T>, e: PrimalDEdgeEntity) {
     let edge = mesh.get_primal(e).borrow();
     let edge_inv_rot = mesh.get_dual(e.rot_inv()).borrow();
-    println!(
-        "{}.org = {:?}",
-        e.0,
-        mesh.get_vertex(edge.org).borrow(),
-    );
+    println!("{}.org = {:?}", e.0, mesh.get_vertex(edge.org).borrow(),);
     println!(
         "{}.left = {:?}",
         e.0,

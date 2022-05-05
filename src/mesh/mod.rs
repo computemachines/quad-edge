@@ -14,27 +14,27 @@ pub use primal::PrimalMeshCursor;
 /// Tools for constructing, navigating and manipulating meshes.
 ///
 #[derive(Debug)]
-pub struct Mesh<V, F, Cache> {
+pub struct Mesh<V, F, Cache: Default> {
     pub primal_dedges: Vec<Option<RefCell<PrimalDirectedEdge>>>,
     pub dual_dedges: Vec<Option<RefCell<DualDirectedEdge>>>,
     pub vertices: Vec<Option<RefCell<V>>>,
     pub faces: Vec<Option<RefCell<F>>>,
-    cache: Option<Cache>,
+    pub cache: Cache,
 }
 
-impl<V, F, Cache> Default for Mesh<V, F, Cache> {
+impl<V, F, Cache: Default> Default for Mesh<V, F, Cache> {
     fn default() -> Self {
         Self {
             primal_dedges: Default::default(),
             dual_dedges: Default::default(),
             vertices: Default::default(),
             faces: Default::default(),
-            cache: None,
+            cache: Default::default(),
         }
     }
 }
 
-impl<'a, V, F, Cache> Mesh<V, F, Cache> {
+impl<'a, V, F, Cache: Default> Mesh<V, F, Cache> {
     pub fn new() -> Self {
         Mesh::default()
     }
@@ -243,10 +243,7 @@ impl<'a, V, F, Cache> Mesh<V, F, Cache> {
         self.get_primal(e.sym()).borrow_mut().org = dest;
     }
 
-    pub fn primal(
-        &'a self,
-        e: PrimalDEdgeEntity,
-    ) -> PrimalMeshCursor<'a, V, F, Cache> {
+    pub fn primal(&'a self, e: PrimalDEdgeEntity) -> PrimalMeshCursor<'a, V, F, Cache> {
         PrimalMeshCursor::new(self, e)
     }
 
@@ -295,13 +292,13 @@ impl<'a, V, F, Cache> Mesh<V, F, Cache> {
     }
 }
 
-pub struct PrimalOnextRing<'a, V, F, Cache> {
+pub struct PrimalOnextRing<'a, V, F, Cache: Default> {
     first: PrimalDEdgeEntity,
     current: Option<PrimalDEdgeEntity>,
     mesh: &'a Mesh<V, F, Cache>,
 }
 
-impl<'a, V, F, Cache> Iterator for PrimalOnextRing<'a, V, F, Cache> {
+impl<'a, V, F, Cache: Default> Iterator for PrimalOnextRing<'a, V, F, Cache> {
     type Item = PrimalDEdgeEntity;
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(current) = self.current {
@@ -315,12 +312,12 @@ impl<'a, V, F, Cache> Iterator for PrimalOnextRing<'a, V, F, Cache> {
 }
 
 //
-pub struct DualOnextRing<'a, V, F, Cache> {
+pub struct DualOnextRing<'a, V, F, Cache: Default> {
     first: DualDEdgeEntity,
     current: Option<DualDEdgeEntity>,
     mesh: &'a Mesh<V, F, Cache>,
 }
-impl<'a, V, F, Cache> Iterator for DualOnextRing<'a, V, F, Cache> {
+impl<'a, V, F, Cache: Default> Iterator for DualOnextRing<'a, V, F, Cache> {
     type Item = DualDEdgeEntity;
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(current) = self.current {

@@ -1,31 +1,38 @@
 use std::cell::RefCell;
 
-use super::{Mesh, quad::{PrimalDEdgeEntity, PrimalDirectedEdge, DualDEdgeEntity, DualDirectedEdge}, PrimalMeshCursor};
+use super::{
+    quad::{DualDEdgeEntity, DualDirectedEdge, PrimalDEdgeEntity, PrimalDirectedEdge},
+    Mesh, PrimalMeshCursor,
+};
 
-
-pub struct DualMeshCursor<'a, V, F, Cache> {
+pub struct DualMeshCursor<'a, V, F, Cache: Default> {
     mesh: &'a Mesh<V, F, Cache>,
     entity: DualDEdgeEntity,
 }
 
-impl<'a, V, F, Cache> DualMeshCursor<'a, V, F, Cache> {
+impl<'a, V, F, Cache: Default> DualMeshCursor<'a, V, F, Cache> {
     /// Drop reference to mesh.
     pub fn id(self) -> DualDEdgeEntity {
         self.entity
     }
 }
 
-impl<'a, V, F, Cache> DualMeshCursor<'a, V, F, Cache> {
-    pub fn new(mesh: &'a Mesh<V, F, Cache>, entity: DualDEdgeEntity) -> DualMeshCursor<'a, V, F, Cache> {
+impl<'a, V, F, Cache: Default> DualMeshCursor<'a, V, F, Cache> {
+    pub fn new(
+        mesh: &'a Mesh<V, F, Cache>,
+        entity: DualDEdgeEntity,
+    ) -> DualMeshCursor<'a, V, F, Cache> {
         DualMeshCursor { mesh, entity }
     }
     pub fn org(&self) -> &RefCell<F> {
-        self.mesh.get_face(self.mesh.get_dual(self.entity).borrow().org)
+        self.mesh
+            .get_face(self.mesh.get_dual(self.entity).borrow().org)
     }
     pub fn dest(&self) -> &RefCell<F> {
-        self.mesh.get_face(self.mesh.get_dual(self.entity.sym()).borrow().org)
+        self.mesh
+            .get_face(self.mesh.get_dual(self.entity.sym()).borrow().org)
     }
-    pub fn get(&self) -> &RefCell<DualDirectedEdge>{
+    pub fn get(&self) -> &RefCell<DualDirectedEdge> {
         self.mesh.get_dual(self.entity)
     }
 
@@ -46,11 +53,15 @@ impl<'a, V, F, Cache> DualMeshCursor<'a, V, F, Cache> {
         self.extend(self.mesh.get_primal(self.entity.rot()).borrow().onext.rot())
     }
     pub fn lnext(&self) -> DualMeshCursor<'a, V, F, Cache> {
-        self.extend(self.mesh.get_primal(self.entity.rot_inv()).borrow().onext.rot())
+        self.extend(
+            self.mesh
+                .get_primal(self.entity.rot_inv())
+                .borrow()
+                .onext
+                .rot(),
+        )
     }
     pub fn sym(&self) -> DualMeshCursor<V, F, Cache> {
         self.extend(self.entity.sym())
     }
 }
-
-

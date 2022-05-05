@@ -1,21 +1,16 @@
 use bevy::prelude::*;
 use bevy::render::mesh::VertexAttributeValues;
-use bevy::sprite::{Mesh2dHandle};
+use bevy::sprite::Mesh2dHandle;
 
 use bevy_arrow::ATTRIBUTE_WEIGHT;
 
-
 pub struct DefaultArrows;
-impl Plugin for DefaultArrows{
+impl Plugin for DefaultArrows {
     fn build(&self, app: &mut App) {
-        app
-            .add_startup_system_to_stage(StartupStage::PreStartup, setup_arrow_frames)
-        .add_system(animate_pulsing_arrow_frame);
-
+        app.add_startup_system_to_stage(StartupStage::PreStartup, setup_arrow_frames)
+            .add_system(animate_pulsing_arrow_frame);
     }
 }
-
-
 
 #[derive(Component)]
 pub struct WhiteArrowFrame;
@@ -77,7 +72,6 @@ pub fn setup_arrow_frames(
         .insert(RedArrowFrame)
         .insert(PulsingArrowFrame);
 }
-
 
 // TODO: This could be improved. Does not check for repeated mesh_handle.
 fn animate_pulsing_arrow_frame(

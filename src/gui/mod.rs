@@ -8,10 +8,10 @@ use bevy_egui::{egui, EguiContext, EguiPlugin};
 use quad_edge::delaunay_voronoi::DelaunayMesh;
 use quad_edge::mesh::quad::{PrimalDEdgeEntity, VertexEntity};
 
+mod default_arrows;
+mod mesh_draw;
 mod mouse;
 mod shapes;
-mod mesh_draw;
-mod default_arrows;
 
 pub fn explore_mesh(mesh: DelaunayMesh) {
     App::new()
@@ -37,18 +37,25 @@ pub fn explore_mesh(mesh: DelaunayMesh) {
 #[derive(Component)]
 struct NodeSprite;
 
-
 fn init_new_node(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn_bundle(SpriteBundle {
-        texture: asset_server.load("images/node-open.png"),
-        ..Default::default()
-    }).insert(NodeSprite);
+    commands
+        .spawn_bundle(SpriteBundle {
+            texture: asset_server.load("images/node-open.png"),
+            ..Default::default()
+        })
+        .insert(NodeSprite);
 }
 
-fn move_node_to_click(mut transform: Query<&mut Transform, With<NodeSprite>>, mouse_button: Res<Input<MouseButton>>, mouse_position: Res<mouse::MousePosition>) {
+fn move_node_to_click(
+    mut transform: Query<&mut Transform, With<NodeSprite>>,
+    mouse_button: Res<Input<MouseButton>>,
+    mouse_position: Res<mouse::MousePosition>,
+    mut mesh_events: EventWriter<mesh_draw::MeshEvent>,
+) {
     let mut transform = transform.single_mut();
     if mouse_button.just_pressed(MouseButton::Left) {
         *transform = Transform::from_translation((mouse_position.0, 0.0).into());
+        mesh_events.send(mesh_draw::MeshEvent::Insert(mouse_position.0));
     }
 }
 

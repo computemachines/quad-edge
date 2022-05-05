@@ -2,7 +2,6 @@ use std::cell::RefCell;
 
 use super::Mesh;
 
-
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
 pub struct UnspecifiedDEdgeEntity(pub usize);
 
@@ -67,7 +66,6 @@ impl Into<UnspecifiedDEdgeEntity> for DualDEdgeEntity {
 pub struct VertexEntity(pub usize);
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct FaceEntity(pub usize);
-
 
 #[derive(Debug, Default)]
 pub struct PrimalDirectedEdge {

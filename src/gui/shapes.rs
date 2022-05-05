@@ -44,19 +44,19 @@ pub fn build_circle(subdivisions: u32) -> Mesh {
     v_pos.push([0.0, 0.0, 0.0]);
     v_normal.push([0.0, 0.0, 1.0]);
     v_uv.push([0.5, 0.5]);
-    
+
     for (x, y) in right.chain(top).chain(left).chain(bottom) {
-        let dist = (x*x + y*y).sqrt();
+        let dist = (x * x + y * y).sqrt();
         // normalized position
-        v_pos.push([x/dist, y/dist, 0.0]);
+        v_pos.push([x / dist, y / dist, 0.0]);
         v_normal.push([0.0, 0.0, 1.0]);
         v_uv.push([x * 0.5 + 0.5, y * 0.5 + 0.5]);
     }
 
-    for i in 1..8*ns as u32 {
-        indices.append(&mut vec![0, i, i+1]);
+    for i in 1..8 * ns as u32 {
+        indices.append(&mut vec![0, i, i + 1]);
     }
-    indices.append(&mut vec![0, 8*ns as u32, 1]);
+    indices.append(&mut vec![0, 8 * ns as u32, 1]);
 
     // for (i, angle) in (1..).map(|i| (i, 2.0 * i as f32 * 3.1415 / segments as f32)) {
     //     v_pos.push([angle.cos(), angle.sin(), 0.0]);
