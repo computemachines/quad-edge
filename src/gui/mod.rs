@@ -1,3 +1,6 @@
+use std::ops::Deref;
+
+use bevy::ecs::event::Events;
 use bevy::pbr::wireframe::{Wireframe, WireframePlugin};
 use bevy::prelude::shape::Quad;
 use bevy::prelude::*;
@@ -35,15 +38,14 @@ struct SelectedDedge(Option<PDEdgeEntity>);
 pub fn explore_mesh(mesh: DelaunayMesh) {
     App::new()
         .add_plugins(DefaultPlugins)
-        .insert_resource(Msaa {
-            samples: 4,
-        })
+        .insert_resource(Msaa { samples: 4 })
         .add_plugin(mouse::SimpleMouse)
         .add_plugin(bevy_arrow::ArrowPlugin)
         .insert_resource(ClearColor(Color::WHITE))
         .init_resource::<SelectedDedge>()
         .insert_resource::<f32>(100.0)
         .insert_non_send_resource(mesh)
+        .add_event::<MeshEvent>()
         // .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(EguiPlugin)
         // Systems that create Egui widgets should be run during the `CoreStage::Update` stage,
@@ -53,12 +55,25 @@ pub fn explore_mesh(mesh: DelaunayMesh) {
         .add_startup_system(insert_initial_mesh)
         .add_startup_system(init_circles)
         .add_system(ui_system)
+        .add_system(swap_mesh_dedges)
         .add_system(update_delaunay_spread)
         .add_system(update_mesh_positions.label("mesh position"))
         .add_system(update_mesh_selected.after("mesh position"))
         .add_system(animate_pulsing_arrow_frame)
         .add_system(debug_in_circle_test)
         .run();
+}
+
+enum MeshEvent {
+    Swap(PDEdgeEntity),
+}
+
+fn swap_mesh_dedges(mut mesh_events: EventReader<MeshEvent>, mesh: NonSend<DelaunayMesh>) {
+    for mesh_event in mesh_events.iter() {
+        match mesh_event {
+            MeshEvent::Swap(e) => mesh.swap_primal((*e).into())
+        }
+    }
 }
 
 fn set_mesh_vertex_spread(mesh: &mut DelaunayMesh, x: f32) {
@@ -224,6 +239,7 @@ fn ui_system(
     edges: Query<&PDEdgeEntity>,
     mut selected_dedge: ResMut<SelectedDedge>,
     mut spread: ResMut<f32>,
+    mut mesh_events: EventWriter<MeshEvent>,
 ) {
     egui::Window::new("Primal DEdges").show(egui_context.ctx_mut(), |ui| {
         ui.add(egui::Slider::new(&mut *spread, 0.0..=200.0).text("Spread"));
@@ -233,6 +249,15 @@ fn ui_system(
                 .0
                 .map_or("None".to_string(), |e| e.0.to_string())
         ));
+        if ui
+            .add_enabled(
+                selected_dedge.0.is_some(),
+                egui::widgets::Button::new("Swap"),
+            )
+            .clicked()
+        {
+            mesh_events.send(MeshEvent::Swap(selected_dedge.0.unwrap()));
+        };
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .show(ui, |ui| {

@@ -63,56 +63,6 @@ impl Into<UnspecifiedDEdgeEntity> for DualDEdgeEntity {
     }
 }
 
-/// Convenience type for traversing the mesh.
-pub struct MeshCursor<'a, V, F, T, Cache> {
-    mesh: &'a Mesh<V, F, Cache>,
-    entity: T,
-}
-
-impl<'a, V, F, T, Cache> MeshCursor<'a, V, F, T, Cache> {
-    /// Drop reference to mesh.
-    pub fn id(self) -> T {
-        self.entity
-    }
-}
-
-impl<'a, V, F, Cache> MeshCursor<'a, V, F, PrimalDEdgeEntity, Cache> {
-    pub fn new(mesh: &'a Mesh<V, F, Cache>, entity: PrimalDEdgeEntity) -> MeshCursor<'a, V, F, PrimalDEdgeEntity, Cache> {
-        MeshCursor { mesh, entity }
-    }
-    pub fn org(&self) -> &RefCell<V> {
-        self.mesh.get_vertex(self.mesh.get_primal(self.entity).borrow().org)
-    }
-    pub fn dest(&self) -> &RefCell<V> {
-        self.mesh.get_vertex(self.mesh.get_primal(self.entity.sym()).borrow().org)
-    }
-    pub fn get(&self) -> &RefCell<PrimalDirectedEdge>{
-        self.mesh.get_primal(self.entity)
-    }
-
-    fn extend(&self, entity: PrimalDEdgeEntity) -> MeshCursor<'a, V, F, PrimalDEdgeEntity, Cache> {
-        MeshCursor {
-            mesh: self.mesh,
-            entity,
-        }
-    }
-    fn extend_other(&self, entity: DualDEdgeEntity) -> MeshCursor<'a, V, F, DualDEdgeEntity, Cache> {
-        todo!()
-    }
-
-    pub fn onext(&self) -> MeshCursor<'a, V, F, PrimalDEdgeEntity, Cache> {
-        self.extend(self.mesh.get_primal(self.entity).borrow().onext)
-    }
-    pub fn oprev(&self) -> MeshCursor<'a, V, F, PrimalDEdgeEntity, Cache> {
-        self.extend(self.mesh.get_dual(self.entity.rot()).borrow().onext.rot())
-    }
-    pub fn lnext(&self) -> MeshCursor<'a, V, F, PrimalDEdgeEntity, Cache> {
-        self.extend(self.mesh.get_dual(self.entity.rot_inv()).borrow().onext.rot())
-    }
-}
-
-
-
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct VertexEntity(pub usize);
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]

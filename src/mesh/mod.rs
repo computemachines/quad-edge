@@ -1,11 +1,16 @@
 use std::{cell::RefCell, iter};
 
 use self::quad::{
-    DualDEdgeEntity, DualDirectedEdge, FaceEntity, MeshCursor, PrimalDEdgeEntity,
-    PrimalDirectedEdge, VertexEntity,
+    DualDEdgeEntity, DualDirectedEdge, FaceEntity, PrimalDEdgeEntity, PrimalDirectedEdge,
+    VertexEntity,
 };
 
+mod dual;
+mod primal;
 pub mod quad;
+pub use dual::DualMeshCursor;
+pub use primal::PrimalMeshCursor;
+
 /// Tools for constructing, navigating and manipulating meshes.
 ///
 #[derive(Debug)]
@@ -124,20 +129,24 @@ impl<'a, V, F, Cache> Mesh<V, F, Cache> {
         let entity = PrimalDEdgeEntity(self.primal_dedges.len());
 
         self.primal_dedges
-            .push(Some(RefCell::new(PrimalDirectedEdge {//entity
+            .push(Some(RefCell::new(PrimalDirectedEdge {
+                //entity
                 org: org,
                 onext: entity,
             })));
         self.primal_dedges
-            .push(Some(RefCell::new(PrimalDirectedEdge {//entity.rot.rot
+            .push(Some(RefCell::new(PrimalDirectedEdge {
+                //entity.rot.rot
                 org: dest,
                 onext: entity.sym(),
             })));
-        self.dual_dedges.push(Some(RefCell::new(DualDirectedEdge {//entity.rot
+        self.dual_dedges.push(Some(RefCell::new(DualDirectedEdge {
+            //entity.rot
             org: right,
             onext: entity.rot_inv(),
         })));
-        self.dual_dedges.push(Some(RefCell::new(DualDirectedEdge {//entity.rot.rot.rot
+        self.dual_dedges.push(Some(RefCell::new(DualDirectedEdge {
+            //entity.rot.rot.rot
             org: left,
             onext: entity.rot(),
         })));
@@ -216,7 +225,7 @@ impl<'a, V, F, Cache> Mesh<V, F, Cache> {
         self.dual_dedges.get_mut(e.rot_inv().0).unwrap().take();
     }
 
-    pub fn swap(&self, e: PrimalDEdgeEntity) {
+    pub fn swap_primal(&self, e: PrimalDEdgeEntity) {
         let a = self.get_dual(e.rot()).borrow().onext.rot();
         let b = self.get_dual(e.rot_inv()).borrow().onext.rot();
         let a_lnext = self.get_dual(a.rot_inv()).borrow().onext.rot();
@@ -237,8 +246,12 @@ impl<'a, V, F, Cache> Mesh<V, F, Cache> {
     pub fn primal(
         &'a self,
         e: PrimalDEdgeEntity,
-    ) -> MeshCursor<'a, V, F, PrimalDEdgeEntity, Cache> {
-        MeshCursor::new(self, e)
+    ) -> PrimalMeshCursor<'a, V, F, Cache> {
+        PrimalMeshCursor::new(self, e)
+    }
+
+    pub fn dual(&'a self, e: DualDEdgeEntity) -> DualMeshCursor<'a, V, F, Cache> {
+        DualMeshCursor::new(self, e)
     }
 
     pub fn face_to_vertex(
@@ -281,7 +294,6 @@ impl<'a, V, F, Cache> Mesh<V, F, Cache> {
         (new_vertex, new_faces)
     }
 }
-
 
 pub struct PrimalOnextRing<'a, V, F, Cache> {
     first: PrimalDEdgeEntity,
