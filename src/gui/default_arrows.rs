@@ -9,8 +9,10 @@ use bevy_arrow::ATTRIBUTE_WEIGHT;
 pub struct DefaultArrowsParam<'w, 's> {
     pub white: Query<'w, 's, Entity, (With<WhiteArrowFrame>, Without<PulsingArrowFrame>)>,
     pub red: Query<'w, 's, Entity, (With<RedArrowFrame>, Without<PulsingArrowFrame>)>,
+    pub scoop: Query<'w, 's, Entity, (With<ScoopArrowFrame>, Without<PulsingArrowFrame>)>,
     pub pulsing_white: Query<'w, 's, Entity, (With<WhiteArrowFrame>, With<PulsingArrowFrame>)>,
     pub pulsing_red: Query<'w, 's, Entity, (With<RedArrowFrame>, With<PulsingArrowFrame>)>,
+    pub pulsing_scoop: Query<'w, 's, Entity, (With<ScoopArrowFrame>, With<PulsingArrowFrame>)>,
 }
 
 pub struct DefaultArrows;
@@ -28,6 +30,9 @@ pub struct WhiteArrowFrame;
 pub struct RedArrowFrame;
 
 #[derive(Component)]
+pub struct ScoopArrowFrame;
+
+#[derive(Component)]
 pub struct PulsingArrowFrame;
 
 pub fn setup_arrow_frames(
@@ -41,6 +46,7 @@ pub fn setup_arrow_frames(
 
     let white_texture_handle: Handle<Image> = asset_server.load("images/node_arrow_80x16.png");
     let red_texture_handle: Handle<Image> = asset_server.load("images/node_arrow_red_80x16.png");
+    let scoop_texture_handle: Handle<Image> = asset_server.load("images/node_scoop_80x16.png");
     info!("laksjdf");
 
     // Static arrow frames
@@ -54,12 +60,21 @@ pub fn setup_arrow_frames(
         .insert(WhiteArrowFrame);
     commands
         .spawn_bundle(bevy_arrow::ArrowsBundle {
-            mesh: mesh_handle,
+            mesh: mesh_handle.clone(),
             texture: red_texture_handle.clone(),
             local: Transform::from_translation(Vec3::new(0.0, 0.0, 99.0)),
             ..Default::default()
         })
         .insert(RedArrowFrame);
+
+    commands
+        .spawn_bundle(bevy_arrow::ArrowsBundle {
+            mesh: mesh_handle,
+            texture: scoop_texture_handle.clone(),
+            local: Transform::from_translation(Vec3::new(0.0, 0.0, 99.0)),
+            ..Default::default()
+        })
+        .insert(ScoopArrowFrame);
 
     // pulsing arrow frames
     commands
@@ -73,12 +88,21 @@ pub fn setup_arrow_frames(
         .insert(PulsingArrowFrame);
     commands
         .spawn_bundle(bevy_arrow::ArrowsBundle {
-            mesh: pulsing_mesh_handle,
+            mesh: pulsing_mesh_handle.clone(),
             texture: red_texture_handle,
             local: Transform::from_translation(Vec3::new(0.0, 0.0, 99.0)),
             ..Default::default()
         })
         .insert(RedArrowFrame)
+        .insert(PulsingArrowFrame);
+    commands
+        .spawn_bundle(bevy_arrow::ArrowsBundle {
+            mesh: pulsing_mesh_handle,
+            texture: scoop_texture_handle,
+            local: Transform::from_translation(Vec3::new(0.0, 0.0, 99.0)),
+            ..Default::default()
+        })
+        .insert(ScoopArrowFrame)
         .insert(PulsingArrowFrame);
 }
 

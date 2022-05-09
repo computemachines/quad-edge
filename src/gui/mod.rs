@@ -146,6 +146,7 @@ fn ui_system(
                         ));
                         animate_events.send(animate_mesh::AnimateMeshEvent::SetHighlightDedge(
                             Some("highlight test"),
+                            Color::YELLOW,
                             Some(*i),
                         ));
                     }
