@@ -1,6 +1,6 @@
 use cgmath::Point2;
 
-use bevy::prelude::*;
+use log::info;
 
 use crate::{
     geometry::in_circle, geometry::ccw,
@@ -43,7 +43,7 @@ impl DelaunayMesh {
         let y = xy.dest().borrow().clone();
         let b = xy.oprev().dest().borrow().clone();
 
-        in_circle(a, x, y, b)
+        !in_circle(a, x, y, b)
     }
     /// Finds a dedge `e` such that given point `x` either lies on `e` or is strictly inside the left face of `e`.
     pub fn locate_point(&mut self, x: GeometricVertex) -> PrimalDEdgeEntity {
@@ -71,13 +71,16 @@ impl DelaunayMesh {
                 // leftof x, e.onext
                 e.onext_mut();
                 continue;
+            } else if e.left().borrow().is_infinite() {
+                info!("reached boundary. x is outside convex hull.");
+                break e.id();
             } else if ccw(x, *e.dprev().org().borrow(), *e.dprev().dest().borrow()) {
                 info!("x is left of {:?}", e.dprev().id());
                 // leftof x, e.dprev
                 e.dprev_mut();
                 continue;
             } else {
-                info!("fallthrough");
+                info!("found face");
                 break e.id();
             }
         }

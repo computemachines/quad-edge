@@ -1,8 +1,17 @@
+use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use bevy::render::mesh::VertexAttributeValues;
 use bevy::sprite::Mesh2dHandle;
 
 use bevy_arrow::ATTRIBUTE_WEIGHT;
+
+#[derive(SystemParam)]
+pub struct DefaultArrowsParam<'w, 's> {
+    pub white: Query<'w, 's, Entity, (With<WhiteArrowFrame>, Without<PulsingArrowFrame>)>,
+    pub red: Query<'w, 's, Entity, (With<RedArrowFrame>, Without<PulsingArrowFrame>)>,
+    pub pulsing_white: Query<'w, 's, Entity, (With<WhiteArrowFrame>, With<PulsingArrowFrame>)>,
+    pub pulsing_red: Query<'w, 's, Entity, (With<RedArrowFrame>, With<PulsingArrowFrame>)>,
+}
 
 pub struct DefaultArrows;
 impl Plugin for DefaultArrows {

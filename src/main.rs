@@ -12,8 +12,8 @@ fn main() {
     let x = 50.0;
 
     let mut mesh = DelaunayMesh::new();
-    let a = mesh.insert_vertex((-100.0, 100.0));
-    let b = mesh.insert_vertex((-100.0, -100.0));
+    let a = mesh.insert_vertex((0.0, 100.0));
+    let b = mesh.insert_vertex((0.0, -100.0));
     let c = mesh.insert_vertex((100.0, 0.0));
     let d = mesh.insert_vertex((-x, 0.0));
     let inf = mesh.insert_face(VoronoiVertex::Infinite);

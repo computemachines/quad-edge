@@ -33,6 +33,9 @@ impl<'a, V, F, Cache: Default> PrimalMeshCursor<'a, V, F, Cache> {
         self.mesh
             .get_vertex(self.mesh.get_primal(self.entity.sym()).borrow().org)
     }
+    pub fn left(&self) -> &RefCell<F> {
+        self.mesh.get_face(self.mesh.get_dual(self.entity.rot_inv()).borrow().org)
+    }
     pub fn get(&self) -> &RefCell<PrimalDirectedEdge> {
         self.mesh.get_primal(self.entity)
     }

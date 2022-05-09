@@ -3,10 +3,16 @@ use bevy::prelude::*;
 #[derive(Default)]
 pub struct MousePosition(pub Vec2);
 
-fn cursor_position_to_model_2d(window: &Window, position: Vec2) -> Vec2 {
+pub fn screen_space_to_model_2d(window: &Window, position: Vec2) -> Vec2 {
     Vec2::new(
         position.x - 0.5 * window.width(),
         position.y - 0.5 * window.height(),
+    )
+}
+pub fn inverted_screen_space_to_model_2d(window: &Window, position: Vec2) -> Vec2 {
+    Vec2::new(
+        position.x - 0.5 * window.width(),
+        0.5 * window.height() - position.y,
     )
 }
 
@@ -17,7 +23,7 @@ fn update_mouse_position(
 ) {
     if let Some(cursor_moved) = cursor_moved_events.iter().last().take() {
         mouse_position.0 =
-            cursor_position_to_model_2d(windows.get_primary().unwrap(), cursor_moved.position);
+            screen_space_to_model_2d(windows.get_primary().unwrap(), cursor_moved.position);
     }
 }
 

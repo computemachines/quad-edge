@@ -73,3 +73,31 @@ pub fn build_circle(subdivisions: u32) -> Mesh {
 
     circle
 }
+
+pub fn build_rect(a: Vec2, b: Vec2) -> Mesh {
+    let mut quad = Mesh::new(PrimitiveTopology::TriangleList);
+
+    let mut v_pos = vec![
+        [a.x, -1.0, 0.0],
+        [a.x, 1.0, 0.0],
+        [b.x, 1.0, 0.0],
+        [b.x, -1.0, 0.0],
+    ];
+    let mut v_normal = vec![
+        [0.0, 0.0, 1.0],
+        [0.0, 0.0, 1.0],
+        [0.0, 0.0, 1.0],
+        [0.0, 0.0, 1.0],
+    ];
+    let mut v_uv = vec![[0.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, 0.0]];
+
+    let indices = vec![0, 2, 1, 0, 3, 2];
+
+    quad.insert_attribute(Mesh::ATTRIBUTE_POSITION, v_pos);
+    quad.insert_attribute(Mesh::ATTRIBUTE_NORMAL, v_normal);
+    quad.insert_attribute(Mesh::ATTRIBUTE_UV_0, v_uv);
+    // quads.insert_attribute(ATTRIBUTE_WEIGHT, v_weight);
+    quad.set_indices(Some(Indices::U32(indices)));
+
+    quad
+}
