@@ -44,6 +44,10 @@ impl Plugin for AnimateMesh {
                 // MeshStage::DelaunayMeshRead,
                 SystemSet::on_update(AnimationState::LocatePoint)
                     .with_system(algorithm_animate::update_animation_locate_point),
+            )
+            .add_system_set(
+                SystemSet::on_update(AnimationState::InsertExterior)
+                    .with_system(algorithm_animate::update_animation_insert_exterior),
             );
     }
 }
@@ -209,6 +213,7 @@ pub enum AnimateMeshEvent<'a> {
     SetTargetPosition(Option<&'a str>, Vec2),
     SetTargetVisibility(Option<&'a str>, bool),
     BeginLocateAnimation(Option<&'a str>),
+    BeginInsertExteriorAnimation(Option<&'a str>),
 }
 
 fn handle_animation_events(
@@ -273,6 +278,12 @@ fn handle_animation_events(
                     phase_text.value = format!("{}\n", phase);
                 }
                 animation_state.set(AnimationState::LocatePoint).unwrap();
+            }
+            AnimateMeshEvent::BeginInsertExteriorAnimation(phase) => {
+                if let Some(phase) = phase {
+                    phase_text.value = format!("{}\n", phase);
+                }
+                animation_state.set(AnimationState::InsertExterior).unwrap();
             }
             AnimateMeshEvent::SetMarked(action, pde, set) => {
                 if let Some(action) = *action {

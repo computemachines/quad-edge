@@ -15,6 +15,7 @@ impl Plugin for MeshDraw {
     fn build(&self, app: &mut App) {
         app.insert_resource::<f32>(150.0)
             .add_event::<MeshEvent>()
+            .add_event::<NotifyMeshEvent>()
             .add_stage(MeshStage::DelaunayMeshUpdate, SystemStage::parallel())
             .add_stage_after(
                 MeshStage::DelaunayMeshUpdate,
@@ -25,7 +26,8 @@ impl Plugin for MeshDraw {
             // .add_system(insert_node.label("insert node"))
             .add_system_to_stage(MeshStage::DelaunayMeshUpdate, swap_mesh_dedges)
             .add_system_to_stage(MeshStage::DelaunayMeshUpdate, update_delaunay_spread)
-            .add_system_to_stage(MeshStage::DelaunayMeshRead, update_mesh_positions.label("mesh positions"));
+            .add_system_to_stage(MeshStage::DelaunayMeshRead, update_mesh_positions.label("mesh positions"))
+            .add_system_to_stage(MeshStage::DelaunayMeshRead, handle_notify_mesh_events);
     }
 }
 
@@ -44,7 +46,7 @@ impl From<PDEdgeEntity> for PrimalDEdgeEntity {
 }
 pub enum MeshEvent {
     Swap(PDEdgeEntity),
-    Insert(Vec2),
+    // Insert(Vec2),
 }
 
 fn swap_mesh_dedges(mut mesh_events: EventReader<MeshEvent>, mesh: NonSend<DelaunayMesh>) {
@@ -90,13 +92,6 @@ fn insert_initial_mesh_into_world(
             Without<default_arrows::PulsingArrowFrame>,
         ),
     >,
-    white_arrow_frame: Query<
-        Entity,
-        (
-            With<default_arrows::WhiteArrowFrame>,
-            Without<default_arrows::PulsingArrowFrame>,
-        ),
-    >,
 ) {
     let red_arrow_frame = red_arrow_frame.single();
     // let white_arrow_frame = white_arrow_frame.single();
@@ -129,6 +124,41 @@ fn insert_initial_mesh_into_world(
                     width: 16.0,
                 })
                 .insert(PDEdgeEntity::from(ent));
+        }
+    }
+}
+
+pub enum NotifyMeshEvent {
+    DEdgeInserted(PDEdgeEntity),
+    // EdgeRemoved(PDEdgeEntity),
+}
+
+fn handle_notify_mesh_events(
+    mut commands: Commands,
+    mesh: NonSend<DelaunayMesh>,
+    red_arrow_frame: Query<
+        Entity,
+        (
+            With<default_arrows::RedArrowFrame>,
+            Without<default_arrows::PulsingArrowFrame>,
+        ),
+    >,
+    mut notify_mesh_events: EventReader<NotifyMeshEvent>
+) {
+    for event in notify_mesh_events.iter() {
+        match *event {
+            NotifyMeshEvent::DEdgeInserted(pde) => {
+                let cursor = mesh.primal(pde.into());
+                let origin = cursor.org().borrow();
+                let dest = cursor.dest().borrow();
+                commands.spawn().insert(bevy_arrow::Arrow {
+                    tail: Vec3::new(origin.x as f32, origin.y as f32, 0.0),
+                    head: Vec3::new(dest.x as f32, dest.y as f32, 0.0),
+                    arrow_frame: red_arrow_frame.single(),
+                    width: 16.0,
+                }).insert(pde);
+            }
+            // NotifyMeshEvent::EdgeRemoved(_) => todo!(),
         }
     }
 }

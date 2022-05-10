@@ -7,8 +7,11 @@ use bevy_arrow::ATTRIBUTE_WEIGHT;
 use bevy_egui::egui::{Label, RichText, Sense};
 use bevy_egui::{egui, EguiContext, EguiPlugin};
 use bevy_inspector_egui::WorldInspectorPlugin;
+use cgmath::Point2;
 use quad_edge::delaunay_voronoi::DelaunayMesh;
 use quad_edge::mesh::quad::{PrimalDEdgeEntity, VertexEntity};
+
+use self::animate_mesh::PointTarget;
 
 mod animate_mesh;
 mod default_arrows;
@@ -65,8 +68,6 @@ fn move_node_to_click(
 
     if mouse_button.just_pressed(MouseButton::Left) {
         let pos = mouse_position.0;
-        dbg!(pos);
-        dbg!(window_max);
         if pos.x > window_min.x
             && pos.y > window_min.y
             && pos.x < window_max.x
@@ -98,8 +99,10 @@ fn ui_system(
     mut egui_context: ResMut<EguiContext>,
     mut ui_window_rect: ResMut<UiWindowRect>,
     edges: Query<&mesh_draw::PDEdgeEntity>,
-    selected_dedge: Res<animate_mesh::ActiveDedge>,
+    active_dedge: Res<animate_mesh::ActiveDedge>,
     mut spread: ResMut<f32>,
+    mut mesh: NonSendMut<DelaunayMesh>,
+    target_point: Query<&Transform, With<PointTarget>>,
     mut mesh_events: EventWriter<mesh_draw::MeshEvent>,
     mut animate_events: EventWriter<animate_mesh::AnimateMeshEvent<'static>>,
 ) {
@@ -110,19 +113,24 @@ fn ui_system(
         ui.add(egui::Slider::new(&mut *spread, 0.0..=200.0).text("Spread"));
         ui.label(format!(
             "Selected Dedge: {}",
-            selected_dedge
+            active_dedge
                 .0
                 .map_or("None".to_string(), |e| e.0.to_string())
         ));
         if ui
             .add_enabled(
-                selected_dedge.0.is_some(),
+                active_dedge.0.is_some(),
                 egui::widgets::Button::new("Swap"),
             )
             .clicked()
         {
-            mesh_events.send(mesh_draw::MeshEvent::Swap(selected_dedge.0.unwrap()));
+            mesh_events.send(mesh_draw::MeshEvent::Swap(active_dedge.0.unwrap()));
         };
+        if ui.button("locate").clicked() {
+            let x = target_point.single().translation;
+            let found = mesh.locate_point(Point2::new(x.x, x.y));
+            animate_events.send(animate_mesh::AnimateMeshEvent::SetActiveDedge(Some("located"), Some(found.into())));
+        }
         if ui.button("start animation").clicked() {
             animate_events.send(animate_mesh::AnimateMeshEvent::BeginLocateAnimation(Some(
                 "Locate Test Point",
@@ -133,7 +141,7 @@ fn ui_system(
             .show(ui, |ui| {
                 for i in edges.iter() {
                     let mut text = RichText::new(format!("{}", i.0));
-                    if let Some(selected) = selected_dedge.0 {
+                    if let Some(selected) = active_dedge.0 {
                         if selected == *i {
                             text = text.strong();
                         }

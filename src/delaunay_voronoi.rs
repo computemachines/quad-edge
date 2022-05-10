@@ -66,14 +66,14 @@ impl DelaunayMesh {
                 info!("x is right of {:?}", e.id());
                 e.sym_mut();
                 continue;
+            } else if e.left().borrow().is_infinite() {
+                info!("reached boundary. x is outside convex hull.");
+                break e.id();
             } else if ccw(x, *e.onext().org().borrow(), *e.onext().dest().borrow()) {
                 info!("x is left of {:?}", e.onext().id());
                 // leftof x, e.onext
                 e.onext_mut();
                 continue;
-            } else if e.left().borrow().is_infinite() {
-                info!("reached boundary. x is outside convex hull.");
-                break e.id();
             } else if ccw(x, *e.dprev().org().borrow(), *e.dprev().dest().borrow()) {
                 info!("x is left of {:?}", e.dprev().id());
                 // leftof x, e.dprev
