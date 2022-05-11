@@ -85,6 +85,32 @@ mod tests {
     }
 
     #[test]
+    fn connect_splits_face() {
+        let mut mesh = TopologicalMesh::new();
+        let a = mesh.insert_vertex("A");
+        let b = mesh.insert_vertex("B");
+        let c = mesh.insert_vertex("C");
+        let d = mesh.insert_vertex("D");
+        let f = mesh.insert_vertex("F");
+        let infinity = mesh.insert_face("(infinity)");
+
+        let e1 = mesh.make_edge(a, b, infinity, infinity);
+        let e2 = mesh.connect_vertex(e1, c);
+        let e3 = mesh.make_edge(d, f, infinity, infinity);
+        let e4 = mesh.connect_primal(e2.sym(), e3);
+
+        // for (i, dedge) in mesh.primal_dedges.drain(..).enumerate() {
+        //     let temp = dedge.unwrap();
+        //     let dedge = temp.borrow();
+        //     println!("{i}: org={}, onext={}", dedge.org.0, dedge.onext.0);
+        // }
+
+        assert_eq!(mesh.primal(e2).onext().id(), e1.sym());
+        assert_eq!(mesh.primal(e1).rprev().id(), e4);
+        assert_eq!(mesh.primal(e2).oprev().id(), e4);
+    }
+
+    #[test]
     fn simple_swap() {
         let mut mesh = TopologicalMesh::new();
         let a = mesh.insert_vertex("A");

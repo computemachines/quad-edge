@@ -80,6 +80,12 @@ impl<'a, V, F, Cache: Default> PrimalMeshCursor<'a, V, F, Cache> {
         self.entity = self.mesh.get_dual(self.entity.rot_inv()).borrow().onext.rot();
         self
     }
+    pub fn rnext(&self) -> Self {
+        self.extend(self.mesh.get_dual(self.entity.rot()).borrow().onext.rot_inv())
+    }
+    pub fn rprev(&self) -> Self {
+        self.extend(self.mesh.get_primal(self.entity.sym()).borrow().onext)
+    }
     pub fn sym(&self) -> PrimalMeshCursor<V, F, Cache> {
         self.extend(self.entity.sym())
     }

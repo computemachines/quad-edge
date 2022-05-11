@@ -176,7 +176,7 @@ impl<'a, V, F, Cache: Default> Mesh<V, F, Cache> {
 
     // fn splice_dual(&self, )
 
-    /// Create new primal edge from the end of `from` to the begining of `to`
+    /// Create new primal edge from the end of `from` to the begining of `to`. New edge is onext to from.sym()
     pub fn connect_primal(
         &mut self,
         from: PrimalDEdgeEntity,

@@ -11,25 +11,36 @@ mod gui;
 fn main() {
     let x = 50.0;
 
-    let mut mesh = DelaunayMesh::new();
-    let a = mesh.insert_vertex((0.0, 100.0));
-    let b = mesh.insert_vertex((0.0, -100.0));
-    let c = mesh.insert_vertex((100.0, 0.0));
-    let d = mesh.insert_vertex((-x, 0.0));
-    let inf = mesh.insert_face(VoronoiVertex::Infinite);
-    let interior = mesh.insert_face(VoronoiVertex::Finite(0.0, 0.0));
+    // let mut mesh = DelaunayMesh::new();
+    // let a = mesh.insert_vertex((0.0, 100.0));
+    // let b = mesh.insert_vertex((0.0, -100.0));
+    // let c = mesh.insert_vertex((100.0, 0.0));
+    // let d = mesh.insert_vertex((-x, 0.0));
+    // let inf = mesh.insert_face(VoronoiVertex::Infinite);
+    // let interior = mesh.insert_face(VoronoiVertex::Finite(0.0, 0.0));
 
-    let e1 = mesh.make_edge(d, a, inf, interior);
-    let e2 = mesh.make_edge(b, c, interior, inf);
-    let e3 = mesh.connect_primal(e2.sym(), e1);
-    let _e4 = mesh.connect_primal(e2, e1.sym());
+    // let e1 = mesh.make_edge(d, a, inf, interior);
+    // let e2 = mesh.make_edge(b, c, interior, inf);
+    // let e3 = mesh.connect_primal(e2.sym(), e1);
+    // let _e4 = mesh.connect_primal(e2, e1.sym());
     
-    // print_edge_info(&mesh, e3);
-    let e5 = mesh.connect_primal(e3.sym(), e1.sym());
-    mesh.get_dual(e5.rot()).borrow_mut().org = interior;
-    mesh.get_dual(e5.rot_inv()).borrow_mut().org = interior;
-    // let e5 = mesh.connect_primal(e3, e4);
-    println!("{:?} isDelaunay: {}", e5, mesh.is_delaunay(e5));
+    // // print_edge_info(&mesh, e3);
+    // let e5 = mesh.connect_primal(e3.sym(), e1.sym());
+    // mesh.get_dual(e5.rot()).borrow_mut().org = interior;
+    // mesh.get_dual(e5.rot_inv()).borrow_mut().org = interior;
+    // // let e5 = mesh.connect_primal(e3, e4);
+    // println!("{:?} isDelaunay: {}", e5, mesh.is_delaunay(e5));
+
+    let mut mesh = DelaunayMesh::new();
+    let a = mesh.insert_vertex((0.0, -100.0));
+    let b = mesh.insert_vertex((0.0, 0.0));
+    let c = mesh.insert_vertex((0.0, 100.0));
+    // let d = mesh.insert_vertex((0.0, 200.0));
+    let inf = mesh.insert_face(VoronoiVertex::Infinite);
+    let e1 = mesh.make_edge(a, b, inf, inf);
+    let e2 = mesh.connect_vertex(e1, c);
+    // let e3 = mesh.connect_vertex(e2, d);
+
 
     #[cfg(feature = "gui")]
     gui::explore_mesh(mesh);

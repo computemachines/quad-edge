@@ -164,7 +164,7 @@ fn handle_notify_mesh_events(
 }
 
 fn update_delaunay_spread(mut mesh: NonSendMut<DelaunayMesh>, spread: Res<f32>) {
-    set_mesh_vertex_spread(&mut *mesh, *spread)
+    // set_mesh_vertex_spread(&mut *mesh, *spread)
 }
 
 fn update_mesh_positions(

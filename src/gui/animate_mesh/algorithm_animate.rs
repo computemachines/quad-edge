@@ -1,10 +1,10 @@
 use bevy::prelude::*;
 
 use cgmath::Point2;
-use quad_edge::{delaunay_voronoi::DelaunayMesh, geometry::ccw};
+use quad_edge::{delaunay_voronoi::DelaunayMesh, geometry::ccw, mesh::quad::PrimalDEdgeEntity};
 
 use super::{ActiveDedge, AnimateMeshEvent, AnimationState, PointTarget};
-use crate::gui::mesh_draw::{PDEdgeEntity, NotifyMeshEvent};
+use crate::gui::mesh_draw::{NotifyMeshEvent, PDEdgeEntity};
 
 pub fn setup_animation_locate_point(
     mesh: NonSend<DelaunayMesh>,
@@ -45,7 +45,7 @@ pub fn setup_animation_locate_point(
 pub struct AnimationStep(pub Timer);
 impl Default for AnimationStep {
     fn default() -> Self {
-        Self(Timer::from_seconds(5.0, true))
+        Self(Timer::from_seconds(1.0, true))
     }
 }
 
@@ -206,11 +206,10 @@ pub fn update_animation_locate_point(
     info!("stuff");
 }
 
-
 pub enum InsertExteriorState {
     FindFanStart,
     MakeDanglingEdge,
-    CompleteFan,
+    CompleteFan(PrimalDEdgeEntity),
 }
 impl Default for InsertExteriorState {
     fn default() -> Self {
@@ -225,6 +224,7 @@ pub fn update_animation_insert_exterior(
     mut mesh: NonSendMut<DelaunayMesh>,
     point_target: Query<&Transform, With<PointTarget>>,
     active_dedge: Res<ActiveDedge>,
+    mut highlights: Query<&mut super::Highlight>,
     mut animate_events: EventWriter<AnimateMeshEvent<'static>>,
     mut mesh_events: EventWriter<NotifyMeshEvent>,
     mut animation_state: ResMut<State<AnimationState>>,
@@ -246,27 +246,79 @@ pub fn update_animation_insert_exterior(
             //     e.lnext_mut();
             // }
             if ccw(x, *e.org().borrow(), *e.dest().borrow()) {
-                animate_events.send(SetActiveDedge(Some("e := e.Lnext; "), Some(e.lnext().id().into())));
-                
+                animate_events.send(SetActiveDedge(
+                    Some("e := e.Lnext; "),
+                    Some(e.lnext().id().into()),
+                ));
+
                 InsertExteriorState::FindFanStart
             } else {
+                animate_events.send(SetMarked(Some("Found Fan Start"), e.id().into(), true));
                 InsertExteriorState::MakeDanglingEdge
             }
-        },
+        }
         InsertExteriorState::MakeDanglingEdge => {
             info!("make dangling edge");
-            animate_events.send(SetText(None, Some("Make dangling edge at e.sym")));
+
             let v = mesh.insert_vertex(x);
-            let edge = mesh.connect_vertex(active_dedge.0.unwrap().into(), v);
+            let edge =
+                mesh.connect_vertex(PrimalDEdgeEntity::from(active_dedge.0.unwrap()).sym(), v);
+
+            animate_events.send(SetHighlightDedge(
+                Some("Make dangling edge at e.sym"),
+                Color::ORANGE_RED,
+                Some(edge.sym().into()),
+            ));
+            animate_events.send(SetActiveDedge(
+                None,
+                Some(mesh.primal(edge).sym().rprev().id().into()),
+            ));
             mesh_events.send(NotifyMeshEvent::DEdgeInserted(edge.into()));
             mesh_events.send(NotifyMeshEvent::DEdgeInserted(edge.sym().into()));
 
-            InsertExteriorState::CompleteFan
-        },
-        InsertExteriorState::CompleteFan => {
-            animate_events.send(SetText(Some("Inserted Exterior Node"), Some("Graph should be convex")));
-            animation_state.set(AnimationState::Stopped).unwrap();
-            InsertExteriorState::CompleteFan
-        },
+            InsertExteriorState::CompleteFan(edge.sym())
+        }
+        InsertExteriorState::CompleteFan(fan_start) => {
+            if !ccw(x, *e.org().borrow(), *e.dest().borrow()) {
+                info!("x rightof e");
+                let e_rnext_id = e.rnext().id();
+                let e_id = e.id();
+                let e_rprev_id = e.rprev().id();
+                let new_face =
+                    mesh.insert_face(quad_edge::delaunay_voronoi::VoronoiVertex::Finite(0.0, 0.0));
+
+                let new_edge = mesh.connect_primal(e_rprev_id.sym(), fan_start);
+                mesh.get_dual(e_id.rot()).borrow_mut().org = new_face; // set e.right
+                mesh.get_dual(e_rnext_id.rot()).borrow_mut().org = new_face; // set e.rnext.right
+                mesh.get_dual(new_edge.rot()).borrow_mut().org = new_face; // set new_edge.right
+
+                mesh_events.send(NotifyMeshEvent::DEdgeInserted(new_edge.into()));
+                mesh_events.send(NotifyMeshEvent::DEdgeInserted(new_edge.sym().into()));
+                animate_events.send(SetActiveDedge(
+                    Some("Create new fanned edge"),
+                    Some(e_rprev_id.into()),
+                ));
+                animate_events.send(SetHighlightDedge(
+                    None,
+                    Color::YELLOW,
+                    Some(e_rprev_id.sym().into()),
+                ));
+                animate_events.send(SetHighlightDedge(
+                    None,
+                    Color::YELLOW_GREEN,
+                    Some(fan_start.into()),
+                ));
+                // animation_state.set(AnimationState::Stopped).unwrap();
+
+                InsertExteriorState::CompleteFan(fan_start)
+            } else {
+                animate_events.send(SetText(
+                    Some("Inserted Exterior Node"),
+                    Some("Graph should be convex"),
+                ));
+                animation_state.set(AnimationState::Stopped).unwrap();
+                InsertExteriorState::FindFanStart // reset state
+            }
+        }
     }
 }

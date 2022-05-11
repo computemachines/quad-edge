@@ -23,7 +23,7 @@ pub struct AnimateMesh;
 impl Plugin for AnimateMesh {
     fn build(&self, app: &mut App) {
         app.init_resource::<ActiveDedge>()
-            .insert_resource(HighlightColors(vec![Color::YELLOW, Color::YELLOW_GREEN]))
+            .insert_resource(HighlightColors(vec![Color::YELLOW, Color::YELLOW_GREEN, Color::ORANGE_RED]))
             // .insert_resource(AnimationStep(Timer::from_seconds(1.0, true)))
             .add_event::<AnimateMeshEvent>()
             .add_state(AnimationState::Stopped)
@@ -48,9 +48,22 @@ impl Plugin for AnimateMesh {
             .add_system_set(
                 SystemSet::on_update(AnimationState::InsertExterior)
                     .with_system(algorithm_animate::update_animation_insert_exterior),
-            );
+            )
+            .add_system_set(SystemSet::on_enter(AnimationState::Stopped).with_system(debug));
     }
 }
+
+fn debug(
+    mesh: NonSend<DelaunayMesh>,
+) {
+    for (i, edge) in mesh.primal_dedges.iter().enumerate() {
+        println!("{}, {:?}", i, edge);
+    }
+    for (i, edge) in mesh.dual_dedges.iter().enumerate() {
+        println!("{}, {:?}", i, edge);
+    }
+}
+
 
 #[derive(Component)]
 struct DescriptionText;
@@ -88,7 +101,7 @@ fn setup_text(mut commands: Commands, asset_server: Res<AssetServer>) {
 struct HighlightColors(Vec<Color>);
 
 #[derive(Component)]
-struct Highlight(Color, Option<PDEdgeEntity>);
+pub struct Highlight(pub Color, pub Option<PDEdgeEntity>);
 
 fn setup_dedge_highlights(
     mut commands: Commands,
