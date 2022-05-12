@@ -26,7 +26,10 @@ impl Plugin for MeshDraw {
             // .add_system(insert_node.label("insert node"))
             .add_system_to_stage(MeshStage::DelaunayMeshUpdate, swap_mesh_dedges)
             .add_system_to_stage(MeshStage::DelaunayMeshUpdate, update_delaunay_spread)
-            .add_system_to_stage(MeshStage::DelaunayMeshRead, update_mesh_positions.label("mesh positions"))
+            .add_system_to_stage(
+                MeshStage::DelaunayMeshRead,
+                update_mesh_positions.label("mesh positions"),
+            )
             .add_system_to_stage(MeshStage::DelaunayMeshRead, handle_notify_mesh_events);
     }
 }
@@ -80,7 +83,7 @@ fn set_mesh_vertex_spread(mesh: &mut DelaunayMesh, x: f32) {
     v2.x = -x;
 }
 
-use super::default_arrows::{self, PulsingArrowFrame, RedArrowFrame, WhiteArrowFrame, DefaultArrowsParam};
+use super::default_arrows::{self, DefaultArrowsParam};
 
 fn insert_initial_mesh_into_world(
     mut commands: Commands,
@@ -143,7 +146,7 @@ fn handle_notify_mesh_events(
             Without<default_arrows::PulsingArrowFrame>,
         ),
     >,
-    mut notify_mesh_events: EventReader<NotifyMeshEvent>
+    mut notify_mesh_events: EventReader<NotifyMeshEvent>,
 ) {
     for event in notify_mesh_events.iter() {
         match *event {
@@ -151,14 +154,16 @@ fn handle_notify_mesh_events(
                 let cursor = mesh.primal(pde.into());
                 let origin = cursor.org().borrow();
                 let dest = cursor.dest().borrow();
-                commands.spawn().insert(bevy_arrow::Arrow {
-                    tail: Vec3::new(origin.x as f32, origin.y as f32, 0.0),
-                    head: Vec3::new(dest.x as f32, dest.y as f32, 0.0),
-                    arrow_frame: red_arrow_frame.single(),
-                    width: 16.0,
-                }).insert(pde);
-            }
-            // NotifyMeshEvent::EdgeRemoved(_) => todo!(),
+                commands
+                    .spawn()
+                    .insert(bevy_arrow::Arrow {
+                        tail: Vec3::new(origin.x as f32, origin.y as f32, 0.0),
+                        head: Vec3::new(dest.x as f32, dest.y as f32, 0.0),
+                        arrow_frame: red_arrow_frame.single(),
+                        width: 16.0,
+                    })
+                    .insert(pde);
+            } // NotifyMeshEvent::EdgeRemoved(_) => todo!(),
         }
     }
 }
@@ -187,35 +192,3 @@ fn update_mesh_positions(
         arrow.head.y = dest.y as f32;
     }
 }
-
-// // swap the
-// fn update_mesh_is_delaunay(
-//     // arrow_frames: Query<&bevy_arrow::ArrowFrame>,
-//     mesh: NonSend<DelaunayMesh>,
-//     mut query: Query<(&mut bevy_arrow::Arrow, &PDEdgeEntity)>,
-//     arrow_frames: DefaultArrowsParam,
-// ) {
-//     // This is should be rethought out. This isn't good.
-//     let white = arrow_frames.white.single();
-//     let red = arrow_frames.red.single();
-//     let pulsing_white = arrow_frames.pulsing_white.single();
-//     let pulsing_red = arrow_frames.pulsing_red.single();
-
-//     for (mut arrow, ent) in query.iter_mut() {
-//         let x = arrow.arrow_frame;
-//         let is_delaunay = mesh.is_delaunay((*ent).into());
-//         arrow.arrow_frame = if x == pulsing_white || x == pulsing_red {
-//             if is_delaunay {
-//                 pulsing_red
-//             } else {
-//                 pulsing_white
-//             }
-//         } else {
-//             if is_delaunay {
-//                 red
-//             } else {
-//                 white
-//             }
-//         };
-//     }
-// }

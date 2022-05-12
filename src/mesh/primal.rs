@@ -34,7 +34,8 @@ impl<'a, V, F, Cache: Default> PrimalMeshCursor<'a, V, F, Cache> {
             .get_vertex(self.mesh.get_primal(self.entity.sym()).borrow().org)
     }
     pub fn left(&self) -> &RefCell<F> {
-        self.mesh.get_face(self.mesh.get_dual(self.entity.rot_inv()).borrow().org)
+        self.mesh
+            .get_face(self.mesh.get_dual(self.entity.rot_inv()).borrow().org)
     }
     pub fn get(&self) -> &RefCell<PrimalDirectedEdge> {
         self.mesh.get_primal(self.entity)
@@ -61,10 +62,21 @@ impl<'a, V, F, Cache: Default> PrimalMeshCursor<'a, V, F, Cache> {
         self.extend(self.mesh.get_dual(self.entity.rot()).borrow().onext.rot())
     }
     pub fn dprev(&self) -> Self {
-        self.extend(self.mesh.get_dual(self.entity.rot_inv()).borrow().onext.rot_inv())
+        self.extend(
+            self.mesh
+                .get_dual(self.entity.rot_inv())
+                .borrow()
+                .onext
+                .rot_inv(),
+        )
     }
     pub fn dprev_mut(&mut self) -> &mut Self {
-        self.entity = self.mesh.get_dual(self.entity.rot_inv()).borrow().onext.rot_inv();
+        self.entity = self
+            .mesh
+            .get_dual(self.entity.rot_inv())
+            .borrow()
+            .onext
+            .rot_inv();
         self
     }
     pub fn lnext(&self) -> PrimalMeshCursor<'a, V, F, Cache> {
@@ -77,11 +89,25 @@ impl<'a, V, F, Cache: Default> PrimalMeshCursor<'a, V, F, Cache> {
         )
     }
     pub fn lnext_mut(&mut self) -> &mut Self {
-        self.entity = self.mesh.get_dual(self.entity.rot_inv()).borrow().onext.rot();
+        self.entity = self
+            .mesh
+            .get_dual(self.entity.rot_inv())
+            .borrow()
+            .onext
+            .rot();
         self
     }
+    pub fn lprev(&self) -> Self {
+        self.extend(self.mesh.get_primal(self.entity).borrow().onext.sym())
+    }
     pub fn rnext(&self) -> Self {
-        self.extend(self.mesh.get_dual(self.entity.rot()).borrow().onext.rot_inv())
+        self.extend(
+            self.mesh
+                .get_dual(self.entity.rot())
+                .borrow()
+                .onext
+                .rot_inv(),
+        )
     }
     pub fn rprev(&self) -> Self {
         self.extend(self.mesh.get_primal(self.entity.sym()).borrow().onext)

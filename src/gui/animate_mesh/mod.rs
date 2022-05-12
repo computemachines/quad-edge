@@ -1,9 +1,11 @@
+use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::shape::Quad;
 use bevy::prelude::*;
 use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle};
 use bevy::utils::HashMap;
 use bevy_arrow::ArrowFrame;
 use quad_edge::delaunay_voronoi::DelaunayMesh;
+use rand::prelude::*;
 
 use super::default_arrows::DefaultArrowsParam;
 use super::mesh_draw::{MeshStage, PDEdgeEntity};
@@ -19,14 +21,25 @@ pub enum AnimationState {
     InsertExterior,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq, Hash, SystemLabel)]
+pub enum AnimationDemonstrationState {
+    Manual,
+    InsertRandomVertex,
+}
+
 pub struct AnimateMesh;
 impl Plugin for AnimateMesh {
     fn build(&self, app: &mut App) {
         app.init_resource::<ActiveDedge>()
-            .insert_resource(HighlightColors(vec![Color::YELLOW, Color::YELLOW_GREEN, Color::ORANGE_RED]))
+            .insert_resource(HighlightColors(vec![
+                Color::YELLOW,
+                Color::YELLOW_GREEN,
+                Color::ORANGE_RED,
+            ]))
             // .insert_resource(AnimationStep(Timer::from_seconds(1.0, true)))
             .add_event::<AnimateMeshEvent>()
             .add_state(AnimationState::Stopped)
+            .add_state(AnimationDemonstrationState::Manual)
             .add_startup_system(setup_dedge_highlights)
             .add_startup_system(setup_target_sprite)
             .add_startup_system(setup_text)
@@ -49,13 +62,38 @@ impl Plugin for AnimateMesh {
                 SystemSet::on_update(AnimationState::InsertExterior)
                     .with_system(algorithm_animate::update_animation_insert_exterior),
             )
-            .add_system_set(SystemSet::on_enter(AnimationState::Stopped).with_system(debug));
+            .add_system_set(
+                SystemSet::on_update(AnimationState::InsertInterior)
+                    .with_system(algorithm_animate::update_animation_insert_interior),
+            )
+            // .add_system_set(SystemSet::on_enter(AnimationState::Stopped).with_system(debug))
+            .add_system_set(
+                SystemSet::on_enter(AnimationDemonstrationState::InsertRandomVertex)
+                    .with_system(animate_insert_random_vertex),
+            );
     }
 }
 
-fn debug(
-    mesh: NonSend<DelaunayMesh>,
-) {
+fn should_insert_another_vertex() -> ShouldRun {
+    ShouldRun::No
+}
+fn touch_animation_demo_state() {
+
+}
+
+fn animate_insert_random_vertex(mut animate_events: EventWriter<AnimateMeshEvent<'static>>) {
+    let mut rng = rand::thread_rng();
+    let target_position = (rng.gen(), rng.gen()).into();
+    animate_events.send(AnimateMeshEvent::SetTargetPosition(
+        Some("Generate random vertex position"),
+        target_position,
+    ));
+    animate_events.send(AnimateMeshEvent::BeginLocateAnimation(Some(
+        "Find face containing new vertex",
+    )));
+}
+
+fn debug(mesh: NonSend<DelaunayMesh>) {
     for (i, edge) in mesh.primal_dedges.iter().enumerate() {
         println!("{}, {:?}", i, edge);
     }
@@ -63,7 +101,6 @@ fn debug(
         println!("{}, {:?}", i, edge);
     }
 }
-
 
 #[derive(Component)]
 struct DescriptionText;
@@ -193,7 +230,7 @@ fn update_arrow_frames(
     };
 
     for (mut arrow, dedge) in query.iter_mut() {
-        let mut color = if mesh.is_delaunay((*dedge).into()) {
+        let mut color = if mesh.primal((*dedge).into()).left().borrow().is_infinite() {
             red
         } else {
             white

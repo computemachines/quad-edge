@@ -91,11 +91,7 @@ pub fn update_animation_locate_point(
         info!("x is right of {:?}", e.id());
         match *indicate_or_action {
             Indicate => {
-                animate_events.send(SetMarked(
-                    Some("point is right of edge, flipping edge"),
-                    e.id().into(),
-                    true,
-                ));
+                animate_events.send(SetText(None, Some("point is right of edge, flipping edge")));
             }
             Action => {
                 animate_events.send(SetActiveDedge(
@@ -191,7 +187,7 @@ pub fn update_animation_locate_point(
                     Some("Found Edge"),
                     Some("Point lies in face left of active edge!"),
                 ));
-                animation_state.set(AnimationState::Stopped).unwrap();
+                animation_state.set(AnimationState::InsertInterior).unwrap();
             }
         }
         // break e.id();
@@ -208,7 +204,7 @@ pub fn update_animation_locate_point(
 
 pub enum InsertExteriorState {
     FindFanStart,
-    MakeDanglingEdge,
+    InsertDangling,
     CompleteFan(PrimalDEdgeEntity),
 }
 impl Default for InsertExteriorState {
@@ -253,13 +249,12 @@ pub fn update_animation_insert_exterior(
 
                 InsertExteriorState::FindFanStart
             } else {
-                animate_events.send(SetMarked(Some("Found Fan Start"), e.id().into(), true));
-                InsertExteriorState::MakeDanglingEdge
+                // animate_events.send(SetMarked(Some("Found Fan Start"), e.id().into(), true));
+                InsertExteriorState::InsertDangling
             }
         }
-        InsertExteriorState::MakeDanglingEdge => {
+        InsertExteriorState::InsertDangling => {
             info!("make dangling edge");
-
             let v = mesh.insert_vertex(x);
             let edge =
                 mesh.connect_vertex(PrimalDEdgeEntity::from(active_dedge.0.unwrap()).sym(), v);
@@ -318,6 +313,108 @@ pub fn update_animation_insert_exterior(
                 ));
                 animation_state.set(AnimationState::Stopped).unwrap();
                 InsertExteriorState::FindFanStart // reset state
+            }
+        }
+    }
+}
+
+pub enum InsertInteriorState {
+    InsertDangling,
+    FanAbout(PrimalDEdgeEntity),
+}
+impl Default for InsertInteriorState {
+    fn default() -> Self {
+        InsertInteriorState::InsertDangling
+    }
+}
+
+pub fn update_animation_insert_interior(
+    mut step_timer: Local<AnimationStep>,
+    time: Res<Time>,
+    mut local_state: Local<InsertInteriorState>,
+    mut mesh: NonSendMut<DelaunayMesh>,
+    point_target: Query<&Transform, With<PointTarget>>,
+    active_dedge: Res<ActiveDedge>,
+    mut animate_events: EventWriter<AnimateMeshEvent<'static>>,
+    mut mesh_events: EventWriter<NotifyMeshEvent>,
+    mut animation_state: ResMut<State<AnimationState>>,
+) {
+    if !step_timer.0.tick(time.delta()).just_finished() {
+        return;
+    }
+    use AnimateMeshEvent::*;
+
+    let e = mesh.primal(active_dedge.0.unwrap().into());
+    let x = point_target.single().translation;
+
+    // let e_left = e.id().rot_inv();
+
+    // let (v, faces, edges) = mesh.face_to_vertex(e_left);
+    // *mesh.get_vertex(v).borrow_mut() = Point2::new(x.x, x.y);
+    // for edge in edges {
+    //     mesh_events.send(NotifyMeshEvent::DEdgeInserted(edge.into()));
+    //     mesh_events.send(NotifyMeshEvent::DEdgeInserted(edge.sym().into()));
+    // }
+
+    *local_state = match *local_state {
+        InsertInteriorState::InsertDangling => {
+            info!("make dangling edge");
+            animate_events.send(SetText(Some("Insert interior edges"), None));
+
+            let e_sym_id = e.sym().id();
+
+            let v = mesh.insert_vertex(Point2::new(x.x, x.y));
+            let edge = mesh.connect_vertex(e_sym_id, v);
+
+            mesh_events.send(NotifyMeshEvent::DEdgeInserted(edge.into()));
+            mesh_events.send(NotifyMeshEvent::DEdgeInserted(edge.sym().into()));
+
+            animate_events.send(SetHighlightDedge(
+                Some("Make dangling edge at e.sym"),
+                Color::ORANGE_RED,
+                Some(edge.sym().into()),
+            ));
+            // animate_events.send(SetActiveDedge(
+            //     None,
+            //     Some(mesh.primal(edge).sym().rprev().id().into()),
+            // ));
+
+            InsertInteriorState::FanAbout(edge.sym())
+        }
+        InsertInteriorState::FanAbout(end) => {
+            let last_radial_out = e.lprev().id();
+            let face = mesh.get_dual(last_radial_out.rot_inv()).borrow().org;
+            animate_events.send(SetHighlightDedge(None, Color::YELLOW, Some(last_radial_out.into())));
+            if e.lnext().id().0 != end.sym().0 {
+                info!("insert interior fan edge");
+
+                let e_id = e.id();
+                let old_e_lnext_id = e.lnext().id();
+
+                assert!(!mesh.get_face(face).borrow().is_infinite());
+
+                mesh.get_dual(e_id.rot_inv()).borrow_mut().org = face;
+                let edge = mesh.connect_primal(e_id, last_radial_out);
+                mesh.get_dual(edge.rot_inv()).borrow_mut().org = face;
+
+                let new_face =
+                    mesh.insert_face(quad_edge::delaunay_voronoi::VoronoiVertex::Finite(0.0, 0.0));
+                mesh.get_dual(edge.rot()).borrow_mut().org = new_face;
+
+                mesh_events.send(NotifyMeshEvent::DEdgeInserted(edge.into()));
+                mesh_events.send(NotifyMeshEvent::DEdgeInserted(edge.sym().into()));
+
+                animate_events.send(SetActiveDedge(
+                    Some("created new interior edge"),
+                    Some(old_e_lnext_id.into()),
+                ));
+
+                InsertInteriorState::FanAbout(end)
+            } else {
+                mesh.get_dual(end.rot()).borrow_mut().org = face;
+                animate_events.send(SetText(Some("Inserted Interior vertex"), Some("")));
+                animation_state.set(AnimationState::Stopped).unwrap();
+                InsertInteriorState::InsertDangling
             }
         }
     }

@@ -254,7 +254,7 @@ impl<'a, V, F, Cache: Default> Mesh<V, F, Cache> {
     pub fn face_to_vertex(
         &mut self,
         from_face: DualDEdgeEntity,
-    ) -> (VertexEntity, Vec<FaceEntity>) {
+    ) -> (VertexEntity, Vec<FaceEntity>, Vec<PrimalDEdgeEntity>) {
         // delete the face object, but don't touch the `FaceEntities` in the `DualDedge::org`s
         let old_face = self.get_dual(from_face).borrow().org;
         self.delete_face(old_face);
@@ -269,11 +269,13 @@ impl<'a, V, F, Cache: Default> Mesh<V, F, Cache> {
         let new_faces = iter::repeat(lnext_ring.len())
             .map(|_| self.reserve_face())
             .collect::<Vec<_>>();
+        let mut new_edges = Vec::new(); //with_capacity(new_faces.len());
 
         let first_outer_edge = from_face.rot(); //lnext_ring.next().unwrap();
         let org = self.get_primal(first_outer_edge).borrow().org;
 
         let mut newest_dedge_inward = self.make_edge(org, new_vertex, new_faces[0], new_faces[1]);
+        new_edges.push(newest_dedge_inward);
         // create simple quad-edge in a separate manifold.
 
         // splice new edge into the old manifold
@@ -286,9 +288,10 @@ impl<'a, V, F, Cache: Default> Mesh<V, F, Cache> {
         for face_edge in lnext_ring {
             let newest_dedge_outward = self.connect_primal(newest_dedge_inward, face_edge);
             newest_dedge_inward = newest_dedge_outward.sym();
+            new_edges.push(newest_dedge_inward);
         }
 
-        (new_vertex, new_faces)
+        (new_vertex, new_faces, new_edges)
     }
 }
 

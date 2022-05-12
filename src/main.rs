@@ -9,7 +9,19 @@ use quad_edge::{
 mod gui;
 
 fn main() {
-    let x = 50.0;
+    let mut mesh = DelaunayMesh::new();
+    let a = mesh.insert_vertex((0.0, -100.0));
+    let b = mesh.insert_vertex((0.0, 100.0));
+    let c = mesh.insert_vertex((100.0, 0.0));
+    let infinity = mesh.insert_face(VoronoiVertex::Infinite);
+    let inside = mesh.insert_face(VoronoiVertex::Finite(0.0, 0.0));
+
+    let e1 = mesh.make_edge(a, b, infinity, inside);
+    let e2 = mesh.connect_vertex(e1, c);
+    let e3 = mesh.connect_primal(e2, e1);
+
+
+    // let x = 50.0;
 
     // let mut mesh = DelaunayMesh::new();
     // let a = mesh.insert_vertex((0.0, 100.0));
@@ -31,15 +43,15 @@ fn main() {
     // // let e5 = mesh.connect_primal(e3, e4);
     // println!("{:?} isDelaunay: {}", e5, mesh.is_delaunay(e5));
 
-    let mut mesh = DelaunayMesh::new();
-    let a = mesh.insert_vertex((0.0, -100.0));
-    let b = mesh.insert_vertex((0.0, 0.0));
-    let c = mesh.insert_vertex((0.0, 100.0));
-    // let d = mesh.insert_vertex((0.0, 200.0));
-    let inf = mesh.insert_face(VoronoiVertex::Infinite);
-    let e1 = mesh.make_edge(a, b, inf, inf);
-    let e2 = mesh.connect_vertex(e1, c);
-    // let e3 = mesh.connect_vertex(e2, d);
+    // let mut mesh = DelaunayMesh::new();
+    // let a = mesh.insert_vertex((0.0, -100.0));
+    // let b = mesh.insert_vertex((0.0, 0.0));
+    // let c = mesh.insert_vertex((0.0, 100.0));
+    // // let d = mesh.insert_vertex((0.0, 200.0));
+    // let inf = mesh.insert_face(VoronoiVertex::Infinite);
+    // let e1 = mesh.make_edge(a, b, inf, inf);
+    // let e2 = mesh.connect_vertex(e1, c);
+    // // let e3 = mesh.connect_vertex(e2, d);
 
 
     #[cfg(feature = "gui")]
