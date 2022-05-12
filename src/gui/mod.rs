@@ -105,6 +105,7 @@ fn ui_system(
     target_point: Query<&Transform, With<PointTarget>>,
     mut mesh_events: EventWriter<mesh_draw::MeshEvent>,
     mut animate_events: EventWriter<animate_mesh::AnimateMeshEvent<'static>>,
+    mut animate_demo_state: ResMut<State<animate_mesh::AnimationDemonstrationState>>,
 ) {
     let window = egui::Window::new("Primal DEdges");
     window.show(egui_context.ctx_mut(), |ui| {
@@ -132,9 +133,10 @@ fn ui_system(
             animate_events.send(animate_mesh::AnimateMeshEvent::SetActiveDedge(Some("located"), Some(found.into())));
         }
         if ui.button("start animation").clicked() {
-            animate_events.send(animate_mesh::AnimateMeshEvent::BeginLocateAnimation(Some(
-                "Locate Test Point",
-            )));
+            // animate_events.send(animate_mesh::AnimateMeshEvent::BeginLocateAnimation(Some(
+            //     "Locate Test Point",
+            // )));
+            animate_demo_state.set(animate_mesh::AnimationDemonstrationState::InsertRandomVertex).unwrap();
         }
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])

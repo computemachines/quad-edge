@@ -311,6 +311,7 @@ pub fn update_animation_insert_exterior(
                     Some("Inserted Exterior Node"),
                     Some("Graph should be convex"),
                 ));
+                animate_events.send(Done);
                 animation_state.set(AnimationState::Stopped).unwrap();
                 InsertExteriorState::FindFanStart // reset state
             }
@@ -413,6 +414,7 @@ pub fn update_animation_insert_interior(
             } else {
                 mesh.get_dual(end.rot()).borrow_mut().org = face;
                 animate_events.send(SetText(Some("Inserted Interior vertex"), Some("")));
+                animate_events.send(Done);
                 animation_state.set(AnimationState::Stopped).unwrap();
                 InsertInteriorState::InsertDangling
             }

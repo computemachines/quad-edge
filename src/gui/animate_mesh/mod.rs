@@ -5,6 +5,7 @@ use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle};
 use bevy::utils::HashMap;
 use bevy_arrow::ArrowFrame;
 use quad_edge::delaunay_voronoi::DelaunayMesh;
+use rand::distributions::Uniform;
 use rand::prelude::*;
 
 use super::default_arrows::DefaultArrowsParam;
@@ -70,20 +71,30 @@ impl Plugin for AnimateMesh {
             .add_system_set(
                 SystemSet::on_enter(AnimationDemonstrationState::InsertRandomVertex)
                     .with_system(animate_insert_random_vertex),
+            )
+            .add_system_set(
+                SystemSet::on_update(AnimationDemonstrationState::InsertRandomVertex)
+                    .with_system(trigger_insert_random_vertex),
             );
     }
 }
 
-fn should_insert_another_vertex() -> ShouldRun {
-    ShouldRun::No
-}
-fn touch_animation_demo_state() {
-
+fn trigger_insert_random_vertex(
+    mut animate_events: EventReader<AnimateMeshEvent<'static>>,
+    mut demo_state: ResMut<State<AnimationDemonstrationState>>,
+) {
+    for event in animate_events.iter() {
+        if let AnimateMeshEvent::Done = event {
+            demo_state.restart().unwrap();
+        }
+    }
 }
 
 fn animate_insert_random_vertex(mut animate_events: EventWriter<AnimateMeshEvent<'static>>) {
     let mut rng = rand::thread_rng();
-    let target_position = (rng.gen(), rng.gen()).into();
+    let x_range = Uniform::new(-500.0, 500.0);
+    let y_range = Uniform::new(-200.0, 400.0);
+    let target_position = (rng.sample(x_range), rng.sample(y_range)).into();
     animate_events.send(AnimateMeshEvent::SetTargetPosition(
         Some("Generate random vertex position"),
         target_position,
@@ -264,6 +275,7 @@ pub enum AnimateMeshEvent<'a> {
     SetTargetVisibility(Option<&'a str>, bool),
     BeginLocateAnimation(Option<&'a str>),
     BeginInsertExteriorAnimation(Option<&'a str>),
+    Done,
 }
 
 fn handle_animation_events(
@@ -349,6 +361,7 @@ fn handle_animation_events(
                     }
                 }
             }
+            AnimateMeshEvent::Done => {}
         }
     }
 }
