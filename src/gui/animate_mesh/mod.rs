@@ -241,7 +241,9 @@ fn update_arrow_frames(
     };
 
     for (mut arrow, dedge) in query.iter_mut() {
-        let mut color = if mesh.primal((*dedge).into()).left().borrow().is_infinite() {
+        let is_boundary = mesh.primal((*dedge).into()).left().borrow().is_infinite();
+        let is_delaunay = mesh.is_delaunay((*dedge).into());
+        let mut color = if is_delaunay {
             red
         } else {
             white

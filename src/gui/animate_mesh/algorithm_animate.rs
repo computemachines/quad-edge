@@ -75,7 +75,7 @@ pub fn update_animation_locate_point(
     use AnimateMeshEvent::*;
     use LocatePointAnimationState::*;
 
-    info!("animation step");
+    //info!("animation step");
     let x: Vec3 = point_target.single().translation;
     let x = Point2::new(x.x, x.y);
 
@@ -88,7 +88,7 @@ pub fn update_animation_locate_point(
         ));
     } else if !ccw(x, *e.org().borrow(), *e.dest().borrow()) {
         // rightof x, e
-        info!("x is right of {:?}", e.id());
+        //info!("x is right of {:?}", e.id());
         match *indicate_or_action {
             Indicate => {
                 animate_events.send(SetText(None, Some("point is right of edge, flipping edge")));
@@ -103,8 +103,8 @@ pub fn update_animation_locate_point(
         // e.sym_mut();
         // continue;
     } else if e.left().borrow().is_infinite() {
-        info!("left of boundary edge");
-        dbg!(e.left().borrow());
+        //info!("left of boundary edge");
+        //dbg!(e.left().borrow());
         match *indicate_or_action {
             Indicate => animate_events.send(SetText(
                 None,
@@ -120,7 +120,7 @@ pub fn update_animation_locate_point(
             }
         }
     } else if ccw(x, *e.onext().org().borrow(), *e.onext().dest().borrow()) {
-        info!("x is left of {:?}", e.onext().id());
+        //info!("x is left of {:?}", e.onext().id());
         match *indicate_or_action {
             Indicate => animate_events.send(SetHighlightDedge(
                 Some("point is left of active edge and left of Onext (yellow)"),
@@ -140,7 +140,7 @@ pub fn update_animation_locate_point(
         // e.onext_mut();
         // continue;
     } else if ccw(x, *e.dprev().org().borrow(), *e.dprev().dest().borrow()) {
-        info!("x is left of {:?}", e.dprev().id());
+        //info!("x is left of {:?}", e.dprev().id());
         match *indicate_or_action {
             Indicate => {
                 animate_events.send(SetHighlightDedge(
@@ -168,7 +168,7 @@ pub fn update_animation_locate_point(
         // e.dprev_mut();
         // continue;
     } else {
-        info!("found face");
+        //info!("found face");
         match *indicate_or_action {
             Indicate => {
                 animate_events.send(SetHighlightDedge(
@@ -223,6 +223,7 @@ pub fn update_animation_insert_exterior(
     mut highlights: Query<&mut super::Highlight>,
     mut animate_events: EventWriter<AnimateMeshEvent<'static>>,
     mut mesh_events: EventWriter<NotifyMeshEvent>,
+    mut mutate_mesh_events: EventWriter<crate::gui::mesh_draw::MeshEvent>,
     mut animation_state: ResMut<State<AnimationState>>,
 ) {
     if !step_timer.0.tick(time.delta()).just_finished() {
@@ -230,7 +231,7 @@ pub fn update_animation_insert_exterior(
     }
     use AnimateMeshEvent::*;
 
-    info!("animation step");
+    //info!("animation step");
     let x: Vec3 = point_target.single().translation;
     let x = Point2::new(x.x, x.y);
 
@@ -254,7 +255,7 @@ pub fn update_animation_insert_exterior(
             }
         }
         InsertExteriorState::InsertDangling => {
-            info!("make dangling edge");
+            //info!("make dangling edge");
             let v = mesh.insert_vertex(x);
             let edge =
                 mesh.connect_vertex(PrimalDEdgeEntity::from(active_dedge.0.unwrap()).sym(), v);
@@ -275,7 +276,7 @@ pub fn update_animation_insert_exterior(
         }
         InsertExteriorState::CompleteFan(fan_start) => {
             if !ccw(x, *e.org().borrow(), *e.dest().borrow()) {
-                info!("x rightof e");
+                //info!("x rightof e");
                 let e_rnext_id = e.rnext().id();
                 let e_id = e.id();
                 let e_rprev_id = e.rprev().id();
@@ -289,6 +290,14 @@ pub fn update_animation_insert_exterior(
 
                 mesh_events.send(NotifyMeshEvent::DEdgeInserted(new_edge.into()));
                 mesh_events.send(NotifyMeshEvent::DEdgeInserted(new_edge.sym().into()));
+                
+                if mesh.is_delaunay(e_id) {
+                    info!("is delaunay");
+                } else {
+                    info!("is not delaunay");
+                    mutate_mesh_events.send(crate::gui::mesh_draw::MeshEvent::Swap(e_id.into()));
+                }
+                
                 animate_events.send(SetActiveDedge(
                     Some("Create new fanned edge"),
                     Some(e_rprev_id.into()),
@@ -337,7 +346,8 @@ pub fn update_animation_insert_interior(
     point_target: Query<&Transform, With<PointTarget>>,
     active_dedge: Res<ActiveDedge>,
     mut animate_events: EventWriter<AnimateMeshEvent<'static>>,
-    mut mesh_events: EventWriter<NotifyMeshEvent>,
+    mut notify_mesh_events: EventWriter<NotifyMeshEvent>,
+    mut mesh_events: EventWriter<crate::gui::mesh_draw::MeshEvent>,
     mut animation_state: ResMut<State<AnimationState>>,
 ) {
     if !step_timer.0.tick(time.delta()).just_finished() {
@@ -359,7 +369,7 @@ pub fn update_animation_insert_interior(
 
     *local_state = match *local_state {
         InsertInteriorState::InsertDangling => {
-            info!("make dangling edge");
+            //info!("make dangling edge");
             animate_events.send(SetText(Some("Insert interior edges"), None));
 
             let e_sym_id = e.sym().id();
@@ -367,8 +377,8 @@ pub fn update_animation_insert_interior(
             let v = mesh.insert_vertex(Point2::new(x.x, x.y));
             let edge = mesh.connect_vertex(e_sym_id, v);
 
-            mesh_events.send(NotifyMeshEvent::DEdgeInserted(edge.into()));
-            mesh_events.send(NotifyMeshEvent::DEdgeInserted(edge.sym().into()));
+            notify_mesh_events.send(NotifyMeshEvent::DEdgeInserted(edge.into()));
+            notify_mesh_events.send(NotifyMeshEvent::DEdgeInserted(edge.sym().into()));
 
             animate_events.send(SetHighlightDedge(
                 Some("Make dangling edge at e.sym"),
@@ -387,7 +397,7 @@ pub fn update_animation_insert_interior(
             let face = mesh.get_dual(last_radial_out.rot_inv()).borrow().org;
             animate_events.send(SetHighlightDedge(None, Color::YELLOW, Some(last_radial_out.into())));
             if e.lnext().id().0 != end.sym().0 {
-                info!("insert interior fan edge");
+                //info!("insert interior fan edge");
 
                 let e_id = e.id();
                 let old_e_lnext_id = e.lnext().id();
@@ -402,13 +412,21 @@ pub fn update_animation_insert_interior(
                     mesh.insert_face(quad_edge::delaunay_voronoi::VoronoiVertex::Finite(0.0, 0.0));
                 mesh.get_dual(edge.rot()).borrow_mut().org = new_face;
 
-                mesh_events.send(NotifyMeshEvent::DEdgeInserted(edge.into()));
-                mesh_events.send(NotifyMeshEvent::DEdgeInserted(edge.sym().into()));
+                notify_mesh_events.send(NotifyMeshEvent::DEdgeInserted(edge.into()));
+                notify_mesh_events.send(NotifyMeshEvent::DEdgeInserted(edge.sym().into()));
 
                 animate_events.send(SetActiveDedge(
                     Some("created new interior edge"),
                     Some(old_e_lnext_id.into()),
                 ));
+                
+                if mesh.is_delaunay(e_id) {
+                    info!("is delaunay");
+                } else {
+                    info!("is not delaunay");
+                    mesh_events.send(crate::gui::mesh_draw::MeshEvent::Swap(e_id.into()));
+                }
+                    
 
                 InsertInteriorState::FanAbout(end)
             } else {
