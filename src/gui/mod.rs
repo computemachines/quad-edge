@@ -21,6 +21,12 @@ mod shapes;
 
 pub fn explore_mesh(mesh: DelaunayMesh) {
     App::new()
+    .insert_resource(WindowDescriptor {
+        title: "Delanuay Triangulation".to_string(),
+            width: 1280.,
+            height: 720.,
+            ..Default::default()
+        })
         .add_plugins(DefaultPlugins)
         // .insert_resource(ReportExecutionOrderAmbiguities)
         // .add_plugin(WorldInspectorPlugin::new())
@@ -81,7 +87,8 @@ fn move_node_to_click(
         animate_events.send(animate_mesh::AnimateMeshEvent::SetTargetPosition(
             Some("Set target point from mouse click"),
             mouse_position.0,
-        ))
+        ));
+        animate_events.send(animate_mesh::AnimateMeshEvent::BeginLocateAnimation(None));
         // mesh_events.send(mesh_draw::MeshEvent::Insert(mouse_position.0));
     }
 }
@@ -119,10 +126,7 @@ fn ui_system(
                 .map_or("None".to_string(), |e| e.0.to_string())
         ));
         if ui
-            .add_enabled(
-                active_dedge.0.is_some(),
-                egui::widgets::Button::new("Swap"),
-            )
+            .add_enabled(active_dedge.0.is_some(), egui::widgets::Button::new("Swap"))
             .clicked()
         {
             mesh_events.send(mesh_draw::MeshEvent::Swap(active_dedge.0.unwrap()));
@@ -130,13 +134,18 @@ fn ui_system(
         if ui.button("locate").clicked() {
             let x = target_point.single().translation;
             let found = mesh.locate_point(Point2::new(x.x, x.y));
-            animate_events.send(animate_mesh::AnimateMeshEvent::SetActiveDedge(Some("located"), Some(found.into())));
+            animate_events.send(animate_mesh::AnimateMeshEvent::SetActiveDedge(
+                Some("located"),
+                Some(found.into()),
+            ));
         }
         if ui.button("start animation").clicked() {
             // animate_events.send(animate_mesh::AnimateMeshEvent::BeginLocateAnimation(Some(
             //     "Locate Test Point",
             // )));
-            animate_demo_state.set(animate_mesh::AnimationDemonstrationState::InsertRandomVertex).unwrap();
+            animate_demo_state
+                .set(animate_mesh::AnimationDemonstrationState::InsertRandomVertex)
+                .unwrap();
         }
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])

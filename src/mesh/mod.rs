@@ -131,7 +131,7 @@ impl<'a, V, F, Cache: Default> Mesh<V, F, Cache> {
         self.primal_dedges
             .push(Some(RefCell::new(PrimalDirectedEdge {
                 //entity
-                org: org,
+                org,
                 onext: entity,
             })));
         self.primal_dedges

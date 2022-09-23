@@ -52,7 +52,7 @@ impl DelaunayMesh {
                 .primal_dedges
                 .iter()
                 .enumerate()
-                .find(|(i, e)| e.is_some())
+                .find(|(_, e)| e.is_some())
                 .map(|(i, _)| PrimalDEdgeEntity(i));
         }
         let mut e = self.primal(self.cache.last_found_point.unwrap());
@@ -85,7 +85,7 @@ impl DelaunayMesh {
             }
         }
     }
-    pub fn insert_delaunay_vertex(&mut self, v: GeometricVertex) {}
+    //pub fn insert_delaunay_vertex(&mut self, v: GeometricVertex) {}
 }
 
 #[cfg(tests)]

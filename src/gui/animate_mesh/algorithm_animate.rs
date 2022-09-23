@@ -45,7 +45,7 @@ pub fn setup_animation_locate_point(
 pub struct AnimationStep(pub Timer);
 impl Default for AnimationStep {
     fn default() -> Self {
-        Self(Timer::from_seconds(1.0, true))
+        Self(Timer::from_seconds(0.25, true))
     }
 }
 
@@ -316,6 +316,7 @@ pub fn update_animation_insert_exterior(
 
                 InsertExteriorState::CompleteFan(fan_start)
             } else {
+
                 animate_events.send(SetText(
                     Some("Inserted Exterior Node"),
                     Some("Graph should be convex"),
@@ -431,6 +432,14 @@ pub fn update_animation_insert_interior(
                 InsertInteriorState::FanAbout(end)
             } else {
                 mesh.get_dual(end.rot()).borrow_mut().org = face;
+
+                if mesh.is_delaunay(e.id()) {
+                    info!("is delaunay");
+                } else {
+                    info!("is not delaunay");
+                    mesh_events.send(crate::gui::mesh_draw::MeshEvent::Swap(e.id().into()));
+                }
+                
                 animate_events.send(SetText(Some("Inserted Interior vertex"), Some("")));
                 animate_events.send(Done);
                 animation_state.set(AnimationState::Stopped).unwrap();
