@@ -24,8 +24,8 @@ pub enum AnimationState {
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, SystemLabel)]
 pub enum AnimationDemonstrationState {
-    Manual,
     InsertRandomVertex,
+    Manual,
 }
 
 pub struct AnimateMesh;
@@ -213,6 +213,7 @@ fn update_arrow_frames(
     arrow_frames: default_arrows::DefaultArrowsParam,
     mesh: NonSend<DelaunayMesh>,
     mut query: Query<(&mut bevy_arrow::Arrow, &PDEdgeEntity)>,
+    mut animation_state: ResMut<State<AnimationState>>,
 ) {
     let white = arrow_frames.white.single();
     let red = arrow_frames.red.single();

@@ -19,8 +19,9 @@ fn main() {
     let e1 = mesh.make_edge(a, b, infinity, inside);
     let e2 = mesh.connect_vertex(e1, c);
     let _e3 = mesh.connect_primal(e2, e1);
+
+    mesh.insert_delaunay_vertex((-200.0, 0.0).into());
     
-    let x = "hello";
 
     #[cfg(feature = "gui")]
     gui::explore_mesh(mesh);

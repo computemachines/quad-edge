@@ -47,7 +47,6 @@ pub fn setup_arrow_frames(
     let white_texture_handle: Handle<Image> = asset_server.load("images/node_arrow_80x16.png");
     let red_texture_handle: Handle<Image> = asset_server.load("images/node_arrow_red_80x16.png");
     let scoop_texture_handle: Handle<Image> = asset_server.load("images/node_scoop_80x16.png");
-    info!("laksjdf");
 
     // Static arrow frames
     commands

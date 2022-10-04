@@ -25,7 +25,6 @@ impl Plugin for MeshDraw {
             .add_startup_system(insert_initial_mesh_into_world)
             // .add_system(insert_node.label("insert node"))
             .add_system_to_stage(MeshStage::DelaunayMeshUpdate, swap_mesh_dedges)
-            .add_system_to_stage(MeshStage::DelaunayMeshUpdate, update_delaunay_spread)
             .add_system_to_stage(
                 MeshStage::DelaunayMeshRead,
                 update_mesh_positions.label("mesh positions"),
@@ -75,13 +74,6 @@ fn swap_mesh_dedges(mut mesh_events: EventReader<MeshEvent>, mesh: NonSend<Delau
 //         }
 //     }
 // }
-
-fn set_mesh_vertex_spread(mesh: &mut DelaunayMesh, x: f32) {
-    let mut v1 = mesh.get_vertex(VertexEntity(2)).borrow_mut();
-    let mut v2 = mesh.get_vertex(VertexEntity(3)).borrow_mut();
-    v1.x = x;
-    v2.x = -x;
-}
 
 use super::default_arrows::{self, DefaultArrowsParam};
 
@@ -168,9 +160,6 @@ fn handle_notify_mesh_events(
     }
 }
 
-fn update_delaunay_spread(mut mesh: NonSendMut<DelaunayMesh>, spread: Res<f32>) {
-    // set_mesh_vertex_spread(&mut *mesh, *spread)
-}
 
 fn update_mesh_positions(
     mesh: NonSend<DelaunayMesh>,

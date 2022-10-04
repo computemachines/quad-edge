@@ -3,7 +3,8 @@ use cgmath::Point2;
 use log::info;
 
 use crate::{
-    geometry::in_circle, geometry::ccw,
+    geometry::ccw,
+    geometry::in_circle,
     mesh::{quad::PrimalDEdgeEntity, Mesh},
 };
 
@@ -26,7 +27,6 @@ impl VoronoiVertex {
         VoronoiVertex::Infinite == *self
     }
 }
-
 
 #[derive(Default)]
 pub struct LocatePointCache {
@@ -85,7 +85,50 @@ impl DelaunayMesh {
             }
         }
     }
-    //pub fn insert_delaunay_vertex(&mut self, v: GeometricVertex) {}
+    pub fn insert_delaunay_vertex(&mut self, v: GeometricVertex) {
+        let mut e = self.locate_point(v);
+        if self.primal(e).left().borrow().is_infinite() {
+            self.insert_delaunay_exterior_vertex(v, e);
+        } else {
+            // insert interior
+        }
+    }
+    fn insert_delaunay_exterior_vertex(&mut self, v: GeometricVertex, e: PrimalDEdgeEntity) {
+        let mut boundary_edge = self.primal(e);
+        // find fan start
+        while ccw(
+            v,
+            *boundary_edge.org().borrow(),
+            *boundary_edge.dest().borrow(),
+        ) {
+            boundary_edge.lnext_mut();
+        }
+        let boundary_edge = boundary_edge.id();
+        // insert dangling
+        let new_vertex = self.insert_vertex(v);
+        let dangling_edge = self.connect_vertex(boundary_edge.sym(), new_vertex);
+
+        let fan_start = self.primal(dangling_edge.sym()).rprev().id();
+        let mut active_edge = fan_start.clone();
+        // complete fan
+        while !ccw(
+            v,
+            *self.primal(active_edge).org().borrow(),
+            *self.primal(active_edge).dest().borrow(),
+        ) {
+            println!("completing fan");
+            let e_rnext_id = self.primal(active_edge).rnext().id();
+            let e_id = active_edge.clone();
+            let e_rprev_id = self.primal(active_edge).rprev().id();
+            let new_face = self.insert_face(VoronoiVertex::Finite(0.0, 0.0));
+            let new_edge = self.connect_primal(e_rprev_id, fan_start);
+            self.get_dual(e_id.rot()).borrow_mut().org = new_face;
+            self.get_dual(e_rnext_id.rot()).borrow_mut().org = new_face;
+            self.get_dual(new_edge.rot()).borrow_mut().org = new_face;
+            active_edge = e_rprev_id;
+        }
+        println!("done");
+    }
 }
 
 #[cfg(tests)]

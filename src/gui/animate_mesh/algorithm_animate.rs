@@ -45,7 +45,7 @@ pub fn setup_animation_locate_point(
 pub struct AnimationStep(pub Timer);
 impl Default for AnimationStep {
     fn default() -> Self {
-        Self(Timer::from_seconds(0.25, true))
+        Self(Timer::from_seconds(10.0, true))
     }
 }
 
@@ -198,8 +198,6 @@ pub fn update_animation_locate_point(
         Indicate => Action,
         Action => Indicate,
     };
-
-    info!("stuff");
 }
 
 pub enum InsertExteriorState {

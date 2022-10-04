@@ -1,15 +1,9 @@
-use bevy::ecs::schedule::ReportExecutionOrderAmbiguities;
 use bevy::prelude::*;
-use bevy::render::mesh::VertexAttributeValues;
-use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle};
 
-use bevy_arrow::ATTRIBUTE_WEIGHT;
 use bevy_egui::egui::{Label, RichText, Sense};
 use bevy_egui::{egui, EguiContext, EguiPlugin};
-use bevy_inspector_egui::WorldInspectorPlugin;
 use cgmath::Point2;
 use quad_edge::delaunay_voronoi::DelaunayMesh;
-use quad_edge::mesh::quad::{PrimalDEdgeEntity, VertexEntity};
 
 use self::animate_mesh::PointTarget;
 
@@ -46,7 +40,7 @@ pub fn explore_mesh(mesh: DelaunayMesh) {
         // .add_startup_system_to_stage(StartupStage::PostStartup, initial_events)
         .add_system(ui_system)
         .init_resource::<UiWindowRect>()
-        .add_system(move_node_to_click)
+        // .add_system(move_node_to_click)
         .run();
 }
 
@@ -106,8 +100,6 @@ fn ui_system(
     mut egui_context: ResMut<EguiContext>,
     mut ui_window_rect: ResMut<UiWindowRect>,
     edges: Query<&mesh_draw::PDEdgeEntity>,
-    active_dedge: Res<animate_mesh::ActiveDedge>,
-    mut spread: ResMut<f32>,
     mut mesh: NonSendMut<DelaunayMesh>,
     target_point: Query<&Transform, With<PointTarget>>,
     mut mesh_events: EventWriter<mesh_draw::MeshEvent>,
@@ -118,19 +110,6 @@ fn ui_system(
     window.show(egui_context.ctx_mut(), |ui| {
         ui_window_rect.0.replace(ui.ctx().used_rect());
 
-        ui.add(egui::Slider::new(&mut *spread, 0.0..=200.0).text("Spread"));
-        ui.label(format!(
-            "Selected Dedge: {}",
-            active_dedge
-                .0
-                .map_or("None".to_string(), |e| e.0.to_string())
-        ));
-        if ui
-            .add_enabled(active_dedge.0.is_some(), egui::widgets::Button::new("Swap"))
-            .clicked()
-        {
-            mesh_events.send(mesh_draw::MeshEvent::Swap(active_dedge.0.unwrap()));
-        };
         if ui.button("locate").clicked() {
             let x = target_point.single().translation;
             let found = mesh.locate_point(Point2::new(x.x, x.y));
@@ -147,30 +126,6 @@ fn ui_system(
                 .set(animate_mesh::AnimationDemonstrationState::InsertRandomVertex)
                 .unwrap();
         }
-        egui::ScrollArea::vertical()
-            .auto_shrink([false, false])
-            .show(ui, |ui| {
-                for i in edges.iter() {
-                    let mut text = RichText::new(format!("{}", i.0));
-                    if let Some(selected) = active_dedge.0 {
-                        if selected == *i {
-                            text = text.strong();
-                        }
-                    }
-                    let label = Label::new(text).sense(Sense::click());
-                    if ui.add(label).clicked() {
-                        animate_events.send(animate_mesh::AnimateMeshEvent::SetActiveDedge(
-                            Some("manually selected"),
-                            Some(*i),
-                        ));
-                        animate_events.send(animate_mesh::AnimateMeshEvent::SetHighlightDedge(
-                            Some("highlight test"),
-                            Color::YELLOW,
-                            Some(*i),
-                        ));
-                    }
-                }
-            });
     });
 }
 
