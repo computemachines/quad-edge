@@ -48,7 +48,6 @@ impl DelaunayMesh {
     }
     /// Finds a dedge `e` such that given point `x` either lies on `e` or is strictly inside the left face of `e`.
     pub fn locate_point(&mut self, x: GeometricVertex) -> PrimalDEdgeEntity {
-        println!("locating");
         if self.cache.last_found_point.is_none() {
             self.cache.last_found_point = self
                 .primal_dedges
@@ -59,30 +58,23 @@ impl DelaunayMesh {
         }
         let mut e = self.primal(self.cache.last_found_point.unwrap());
         loop {
-            println!("e = {:?}", e.id());
             if x == *e.org().borrow() || x == *e.dest().borrow() {
-                println!("x lies on {:?} endpoints", e.id());
                 break e.id();
             } else if !ccw_or_linear(x, *e.org().borrow(), *e.dest().borrow()) {
                 // rightof x, e
-                println!("x is right of {:?}", e.id());
                 e.sym_mut();
                 continue;
             } else if e.left().borrow().is_infinite() {
-                println!("reached boundary. x is outside convex hull.");
                 break e.id();
             } else if ccw(x, *e.onext().org().borrow(), *e.onext().dest().borrow()) {
-                println!("x is left of {:?}", e.onext().id());
                 // leftof x, e.onext
                 e.onext_mut();
                 continue;
             } else if ccw(x, *e.dprev().org().borrow(), *e.dprev().dest().borrow()) {
-                println!("x is left of {:?}", e.dprev().id());
                 // leftof x, e.dprev
                 e.dprev_mut();
                 continue;
             } else {
-                println!("found face");
                 break e.id();
             }
         }
@@ -133,6 +125,7 @@ impl DelaunayMesh {
         active_edge = fan_start;
         println!("active_edge: {}", active_edge.0);
         dbg!(active_edge);
+        // walk down the fan. check for invalid edges
         loop {
             println!("looping");
             let rprev = self.primal(active_edge).rprev().id();
@@ -141,9 +134,9 @@ impl DelaunayMesh {
                 self.swap_primal(rprev);
                 continue;
             }
-            active_edge = self.primal(active_edge).onext().id();
+            active_edge = self.primal(active_edge).oprev().id();
             if (active_edge.0 == fan_start.0)
-                || !self.primal(rprev).sym().left().borrow().is_infinite()
+                //|| !self.primal(rprev).sym().left().borrow().is_infinite()
             {
                 break;
             }
