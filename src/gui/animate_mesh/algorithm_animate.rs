@@ -218,7 +218,7 @@ pub fn update_animation_insert_exterior(
     mut mesh: NonSendMut<DelaunayMesh>,
     point_target: Query<&Transform, With<PointTarget>>,
     active_dedge: Res<ActiveDedge>,
-    mut highlights: Query<&mut super::Highlight>,
+    //mut highlights: Query<&mut super::Highlight>,
     mut animate_events: EventWriter<AnimateMeshEvent<'static>>,
     mut mesh_events: EventWriter<NotifyMeshEvent>,
     mut mutate_mesh_events: EventWriter<crate::gui::mesh_draw::MeshEvent>,
@@ -288,14 +288,14 @@ pub fn update_animation_insert_exterior(
 
                 mesh_events.send(NotifyMeshEvent::DEdgeInserted(new_edge.into()));
                 mesh_events.send(NotifyMeshEvent::DEdgeInserted(new_edge.sym().into()));
-                
+
                 if mesh.is_delaunay(e_id) {
                     info!("is delaunay");
                 } else {
                     info!("is not delaunay");
                     mutate_mesh_events.send(crate::gui::mesh_draw::MeshEvent::Swap(e_id.into()));
                 }
-                
+
                 animate_events.send(SetActiveDedge(
                     Some("Create new fanned edge"),
                     Some(e_rprev_id.into()),
@@ -314,7 +314,6 @@ pub fn update_animation_insert_exterior(
 
                 InsertExteriorState::CompleteFan(fan_start)
             } else {
-
                 animate_events.send(SetText(
                     Some("Inserted Exterior Node"),
                     Some("Graph should be convex"),
@@ -394,7 +393,11 @@ pub fn update_animation_insert_interior(
         InsertInteriorState::FanAbout(end) => {
             let last_radial_out = e.lprev().id();
             let face = mesh.get_dual(last_radial_out.rot_inv()).borrow().org;
-            animate_events.send(SetHighlightDedge(None, Color::YELLOW, Some(last_radial_out.into())));
+            animate_events.send(SetHighlightDedge(
+                None,
+                Color::YELLOW,
+                Some(last_radial_out.into()),
+            ));
             if e.lnext().id().0 != end.sym().0 {
                 //info!("insert interior fan edge");
 
@@ -418,14 +421,13 @@ pub fn update_animation_insert_interior(
                     Some("created new interior edge"),
                     Some(old_e_lnext_id.into()),
                 ));
-                
+
                 if mesh.is_delaunay(e_id) {
                     info!("is delaunay");
                 } else {
                     info!("is not delaunay");
                     mesh_events.send(crate::gui::mesh_draw::MeshEvent::Swap(e_id.into()));
                 }
-                    
 
                 InsertInteriorState::FanAbout(end)
             } else {
@@ -437,7 +439,7 @@ pub fn update_animation_insert_interior(
                     info!("is not delaunay");
                     mesh_events.send(crate::gui::mesh_draw::MeshEvent::Swap(e.id().into()));
                 }
-                
+
                 animate_events.send(SetText(Some("Inserted Interior vertex"), Some("")));
                 animate_events.send(Done);
                 animation_state.set(AnimationState::Stopped).unwrap();

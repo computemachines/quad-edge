@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
 use super::{
-    quad::{DualDEdgeEntity, DualDirectedEdge, PrimalDEdgeEntity, PrimalDirectedEdge},
+    quad::{DualDEdgeEntity, DualDirectedEdge, PrimalDEdgeEntity},
     Mesh, PrimalMeshCursor,
 };
 
